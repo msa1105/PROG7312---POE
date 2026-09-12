@@ -10,4 +10,11 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.6" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="SmartX.Api.Tests\**" />
+    <Content Remove="SmartX.Api.Tests\**" />
+    <EmbeddedResource Remove="SmartX.Api.Tests\**" />
+    <None Remove="SmartX.Api.Tests\**" />
+  </ItemGroup>
+
 </Project>
