@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { PillarNavigation } from './components/PillarNavigation';
 import { DeviceRegistration } from './components/DeviceRegistration';
 import { TelemetryDashboard } from './components/TelemetryDashboard';

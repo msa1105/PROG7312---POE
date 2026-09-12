@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { SensorDevice } from '../types/telemetry';
+import { useState, useEffect } from 'react';
+
 import { Activity, Zap, Droplets, AlertTriangle, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 import { AnomalyDrawer } from './AnomalyDrawer';

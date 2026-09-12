@@ -16,7 +16,7 @@ export const DeviceRegistration: React.FC<{ onRegistered: () => void }> = ({ onR
       await api.registerDevice({
         macAddress,
         deploymentLocation: location,
-        category: Number(category)
+        category: Number(category) as SensorCategory
       });
       setMacAddress('');
       setLocation('');
@@ -70,7 +70,7 @@ export const DeviceRegistration: React.FC<{ onRegistered: () => void }> = ({ onR
           <select 
             className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-slate-200 outline-none focus:border-blue-500 transition-colors"
             value={category}
-            onChange={(e) => setCategory(Number(e.target.value))}
+            onChange={(e) => setCategory(Number(e.target.value) as SensorCategory)}
           >
             <option value={SensorCategory.Environmental}>Environmental</option>
             <option value={SensorCategory.PowerConsumption}>Power Consumption</option>

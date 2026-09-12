@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { SensorDevice, TelemetryPacket } from '../types/telemetry';
+import type { SensorDevice, TelemetryPacket } from '../types/telemetry';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 

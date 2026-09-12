@@ -1,8 +1,10 @@
-export enum SensorCategory {
-  Environmental = 0,
-  PowerConsumption = 1,
-  Actuator = 2
-}
+export const SensorCategory = {
+  Environmental: 0,
+  PowerConsumption: 1,
+  Actuator: 2
+} as const;
+
+export type SensorCategory = (typeof SensorCategory)[keyof typeof SensorCategory];
 
 export interface DeviceAttachment {
   fileName: string;
