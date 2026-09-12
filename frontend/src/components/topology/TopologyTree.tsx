@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Network, ChevronRight, ChevronDown, Circle } from 'lucide-react';
+import { Network, ChevronRight, ChevronDown } from 'lucide-react';
 import { clsx } from 'clsx';
 
 type Node = {

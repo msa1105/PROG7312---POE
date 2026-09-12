@@ -5,18 +5,20 @@ import { MetricStrip } from './components/dashboard/MetricStrip';
 import { SensorGrid } from './components/dashboard/SensorGrid';
 import { TopologyTree } from './components/topology/TopologyTree';
 import { ValidationConsole } from './components/topology/ValidationConsole';
+import { RegisterDeviceModal } from './components/modals/RegisterDeviceModal';
+import { DiagnosticDrawer } from './components/triage/DiagnosticDrawer';
 import { api } from './services/api';
 
 function App() {
   const [activePillar, setActivePillar] = useState<'ingestion' | 'command' | 'topology'>('ingestion');
   const [devices, setDevices] = useState<any[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<any>(null);
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const simIntervalRef = useRef<number | null>(null);
 
   // Temporary drawer rendering helper
   const renderDrawer = () => {
     if (!selectedDevice) return null;
-    const { DiagnosticDrawer } = require('./components/triage/DiagnosticDrawer');
     return <DiagnosticDrawer deviceData={selectedDevice} onClose={() => setSelectedDevice(null)} />;
   };
 
@@ -79,7 +81,7 @@ function App() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans selection:bg-zinc-800">
       <Header 
-        onRegisterClick={() => console.log("Open Registration Modal")} 
+        onRegisterClick={() => setIsRegisterOpen(true)} 
         onBurst={handleBurst}
         onInjectSpike={handleInjectSpike}
         onDropHeartbeat={handleDropHeartbeat}
@@ -111,6 +113,12 @@ function App() {
       </main>
       
       {renderDrawer()}
+      {isRegisterOpen && (
+        <RegisterDeviceModal 
+          onClose={() => setIsRegisterOpen(false)} 
+          onSuccess={fetchDevices} 
+        />
+      )}
     </div>
   );
 }

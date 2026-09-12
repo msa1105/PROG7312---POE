@@ -1,4 +1,4 @@
-import { X, SearchCode, Database, Download } from 'lucide-react';
+import { X, SearchCode, Database } from 'lucide-react';
 import { OperatorOverloadBox } from './OperatorOverloadBox';
 import { JaggedBufferView } from './JaggedBufferView';
 import { AttachmentManager } from './AttachmentManager';

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../services/api';
-import { Terminal, Check, X, ShieldAlert } from 'lucide-react';
+import { Terminal, ShieldAlert } from 'lucide-react';
 
 export const ValidationConsole = () => {
   const [jsonInput, setJsonInput] = useState(
@@ -17,13 +17,11 @@ export const ValidationConsole = () => {
     }
   ]
 }`);
-  const [result, setResult] = useState<{ isValid: boolean; reason: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
 
   const handleValidate = async () => {
     setLoading(true);
-    setResult(null);
     setLogs(["[AUDIT] Validating Root: AgriTech Facility Alpha..."]);
 
     try {
@@ -37,15 +35,12 @@ export const ValidationConsole = () => {
           ? `[SUCCESS] Hierarchy Traversed. No Cyclic References Detected.`
           : `[FAILED] ${res.reason}`
       ]);
-      setResult(res);
 
     } catch (e: any) {
       if (e.response && e.response.data) {
         setLogs(prev => [...prev, `[FAILED] ${e.response.data.reason}`]);
-        setResult(e.response.data);
       } else {
         setLogs(prev => [...prev, "[FATAL] Invalid JSON format."]);
-        setResult({ isValid: false, reason: "Invalid JSON format." });
       }
     }
     setLoading(false);

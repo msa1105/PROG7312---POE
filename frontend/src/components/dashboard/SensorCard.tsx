@@ -1,4 +1,4 @@
-import { Zap, Droplets, Activity, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Sparkline } from './Sparkline';
 
