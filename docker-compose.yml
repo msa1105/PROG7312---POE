@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./Uploads:/app/uploads
+    networks:
+      - smartx-mesh-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    networks:
+      - smartx-mesh-net
+    depends_on:
+      - backend
+
+networks:
+  smartx-mesh-net:
+    driver: bridge
