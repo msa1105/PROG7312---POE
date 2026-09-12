@@ -28,7 +28,9 @@ export const SensorCard = ({ deviceData, history, currentTime, onOpenDrawer }: S
 
   // Calculate rolling mean and stddev for display (mock approximation from history for UI)
   const mean = history.length > 0 ? (history.reduce((a,b) => a+b, 0) / history.length).toFixed(2) : "0.00";
-  const deviation = latestTelemetry && history.length > 0 ? Math.abs(latestTelemetry.value - parseFloat(mean)).toFixed(2) : "0.00";
+  const deviation = latestTelemetry && history.length > 0 && typeof latestTelemetry.value === 'number' 
+    ? Math.abs(latestTelemetry.value - parseFloat(mean)).toFixed(2) 
+    : "0.00";
 
   return (
     <div 
@@ -80,7 +82,9 @@ export const SensorCard = ({ deviceData, history, currentTime, onOpenDrawer }: S
         <div>
           <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Current Value</p>
           <div className="text-3xl font-mono text-zinc-100 tabular-nums">
-            {latestTelemetry ? latestTelemetry.value.toFixed(2) : "0.00"}
+            {latestTelemetry 
+              ? (typeof latestTelemetry.value === 'number' ? latestTelemetry.value.toFixed(2) : latestTelemetry.value.toString().toUpperCase()) 
+              : "0.00"}
             <span className="text-sm text-zinc-500 ml-1">{latestTelemetry?.metricUnit || '-'}</span>
           </div>
         </div>
