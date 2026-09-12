@@ -2,13 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { PillarNavigation } from './components/layout/PillarNavigation';
 import { Header } from './components/layout/Header';
 import { MetricStrip } from './components/dashboard/MetricStrip';
+import { SensorGrid } from './components/dashboard/SensorGrid';
 import { api } from './services/api';
-// Temporarily import existing dashboard logic, this will be extracted in next steps
-import { TelemetryDashboard } from './components/TelemetryDashboard';
 
 function App() {
   const [activePillar, setActivePillar] = useState<'ingestion' | 'command' | 'topology'>('ingestion');
   const [devices, setDevices] = useState<any[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<any>(null);
   const simIntervalRef = useRef<number | null>(null);
 
   const fetchDevices = async () => {
@@ -83,7 +83,7 @@ function App() {
         {activePillar === 'ingestion' && (
           <div className="max-w-7xl mx-auto mt-6">
             <MetricStrip devices={devices} />
-            <TelemetryDashboard devices={devices} />
+            <SensorGrid devices={devices} onOpenDrawer={setSelectedDevice} />
           </div>
         )}
       </main>
