@@ -54,5 +54,26 @@ export const api = {
   validateTopology: async (rootNode: any) => {
     const response = await apiClient.post('/topology/validate', rootNode);
     return response.data;
+  },
+
+  // Simulation Controls
+  simulationSpike: async (macAddress: string, multiplier: number = 4.5) => {
+    const response = await apiClient.post('/simulation/spike', { macAddress, multiplier });
+    return response.data;
+  },
+
+  simulationDropHeartbeat: async (macAddress: string) => {
+    const response = await apiClient.post('/simulation/drop-heartbeat', { macAddress });
+    return response.data;
+  },
+
+  simulationBurst: async () => {
+    const response = await apiClient.post('/simulation/burst-batch');
+    return response.data;
+  },
+
+  simulationReset: async () => {
+    const response = await apiClient.post('/simulation/reset');
+    return response.data;
   }
 };

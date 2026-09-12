@@ -9,6 +9,8 @@ builder.Services.AddOpenApi();
 builder.Services.AddSingleton<DeviceRegistryService>();
 builder.Services.AddSingleton<AnomalyDetectionService>();
 builder.Services.AddSingleton<JaggedTelemetryBuffer>();
+builder.Services.AddTransient<DataSeeder>();
+builder.Services.AddHostedService<TelemetrySimulationWorker>();
 
 // Configure CORS for frontend
 builder.Services.AddCors(options =>
@@ -23,6 +25,12 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var seeder = scope.ServiceProvider.GetRequiredService<DataSeeder>();
+    seeder.Seed();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -131,7 +139,50 @@ app.MapPost("/api/topology/validate", (DeploymentNode root) =>
     return Results.BadRequest(new { IsValid = false, Reason = reason });
 });
 
+// Simulation Endpoints
+app.MapPost("/api/simulation/spike", (SpikeRequest req) =>
+{
+    TelemetrySimulationWorker.SpikeMacs.Add(req.MacAddress);
+    return Results.Ok(new { message = $"Spike scheduled for {req.MacAddress}" });
+});
+
+app.MapPost("/api/simulation/drop-heartbeat", (DropHeartbeatRequest req) =>
+{
+    TelemetrySimulationWorker.DroppedMacs.Add(req.MacAddress);
+    return Results.Ok(new { message = $"Heartbeat dropped for {req.MacAddress}" });
+});
+
+app.MapPost("/api/simulation/burst-batch", (JaggedTelemetryBuffer buffer) =>
+{
+    var watch = System.Diagnostics.Stopwatch.StartNew();
+    
+    // Simulate ingest of 5000 items in a jagged buffer
+    var rand = new Random();
+    for(int ch = 0; ch < 4; ch++) 
+    {
+        var readings = new double[1250];
+        for(int i = 0; i < 1250; i++) readings[i] = 400.0 + rand.NextDouble() * 20.0;
+        buffer.LoadChannelBatch(ch, readings);
+    }
+    var flushed = buffer.FlushToList("24:6F:28:9A:12:03", "W");
+    
+    watch.Stop();
+    return Results.Ok(new { ProcessedCount = flushed.Count, ElapsedMs = watch.ElapsedMilliseconds });
+});
+
+app.MapPost("/api/simulation/reset", (DeviceRegistryService registry, DataSeeder seeder) =>
+{
+    TelemetrySimulationWorker.DroppedMacs.Clear();
+    TelemetrySimulationWorker.SpikeMacs.Clear();
+    
+    // Simplistic reset by re-seeding
+    seeder.Seed();
+    return Results.Ok(new { message = "Reset successful" });
+});
+
 app.Run();
 
 // DTOs for endpoints
 public record BatchIngestionRequest(string MacAddress, int ChannelIndex, double[] Readings, string MetricUnit);
+public record SpikeRequest(string MacAddress, double Multiplier = 4.5);
+public record DropHeartbeatRequest(string MacAddress);

@@ -3,14 +3,31 @@ import { Server, Activity, Plus } from 'lucide-react';
 
 type HeaderProps = {
   onRegisterClick: () => void;
-  onBurst: () => void;
-  onInjectSpike: () => void;
-  onDropHeartbeat: () => void;
-  onReset: () => void;
+  onBurst: () => Promise<void>;
+  onInjectSpike: () => Promise<void>;
+  onDropHeartbeat: () => Promise<void>;
+  onReset: () => Promise<void>;
 };
 
 export const Header = ({ onRegisterClick, onBurst, onInjectSpike, onDropHeartbeat, onReset }: HeaderProps) => {
   const [time, setTime] = useState(new Date().toISOString().substring(11, 19));
+  const [toast, setToast] = useState<{msg: string, type: 'success' | 'error' | 'info'} | null>(null);
+
+  const handleAction = async (actionName: string, actionFn: () => Promise<void>) => {
+    try {
+      await actionFn();
+    } catch (err: any) {
+      setToast({ msg: `${actionName} Failed: ${err.message}`, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  const executeBurst = async () => {
+    const start = Date.now();
+    await handleAction('Burst', onBurst);
+    setToast({ msg: `5,000 packets ingested in ${Date.now() - start}ms via Jagged Buffer`, type: 'success' });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const int = setInterval(() => {
@@ -46,17 +63,22 @@ export const Header = ({ onRegisterClick, onBurst, onInjectSpike, onDropHeartbea
           <Activity size={12} />
           Simulation Control Panel
         </div>
-        <div className="flex gap-2">
-          <button onClick={onBurst} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-sm transition-colors">
+        <div className="flex gap-2 relative">
+          {toast && (
+            <div className={`absolute -top-10 right-0 px-3 py-1 rounded-sm text-xs font-bold border whitespace-nowrap ${toast.type === 'success' ? 'bg-emerald-950 border-emerald-500 text-emerald-400' : 'bg-rose-950 border-rose-500 text-rose-400'}`}>
+              {toast.msg}
+            </div>
+          )}
+          <button onClick={executeBurst} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-emerald-400 border border-emerald-900 rounded-sm transition-colors">
             Burst 5,000 Pkts
           </button>
-          <button onClick={onInjectSpike} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-sm transition-colors">
+          <button onClick={() => handleAction('Spike', onInjectSpike)} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-rose-400 border border-rose-900 rounded-sm transition-colors">
             Inject +4σ Spike
           </button>
-          <button onClick={onDropHeartbeat} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-sm transition-colors">
+          <button onClick={() => handleAction('Drop', onDropHeartbeat)} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-amber-900 rounded-sm transition-colors">
             Drop Node Heartbeat
           </button>
-          <button onClick={onReset} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-sm transition-colors">
+          <button onClick={() => handleAction('Reset', onReset)} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-slate-300 border border-slate-700 rounded-sm transition-colors">
             Reset Baseline
           </button>
           

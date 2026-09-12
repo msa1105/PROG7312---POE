@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { PillarNavigation } from './components/layout/PillarNavigation';
 import { Header } from './components/layout/Header';
 import { MetricStrip } from './components/dashboard/MetricStrip';
@@ -14,7 +14,6 @@ function App() {
   const [devices, setDevices] = useState<any[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<any>(null);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
-  const simIntervalRef = useRef<number | null>(null);
 
   // Temporary drawer rendering helper
   const renderDrawer = () => {
@@ -34,48 +33,27 @@ function App() {
   useEffect(() => {
     fetchDevices();
     const interval = setInterval(fetchDevices, 2000);
-    return () => {
-      clearInterval(interval);
-      if (simIntervalRef.current) clearInterval(simIntervalRef.current);
-    };
+    return () => clearInterval(interval);
   }, []);
 
-  const handleBurst = () => {
-    console.log("Simulating burst load...");
-    // Simulate active telemetry stream
-    if (simIntervalRef.current) clearInterval(simIntervalRef.current);
-    simIntervalRef.current = window.setInterval(async () => {
-      for (const d of devices) {
-        await api.ingestFloatTelemetry({
-          macAddress: d.device.macAddress,
-          value: 400 + (Math.random() * 20 - 10),
-          metricUnit: 'W'
-        });
-      }
-    }, 2000);
+  const handleBurst = async () => {
+    await api.simulationBurst();
+    await fetchDevices();
   };
 
   const handleInjectSpike = async () => {
-    if (devices.length === 0) return;
-    const randomDevice = devices[Math.floor(Math.random() * devices.length)].device;
-    await api.ingestFloatTelemetry({
-      macAddress: randomDevice.macAddress,
-      value: 900 + Math.random() * 50,
-      metricUnit: 'W'
-    });
+    await api.simulationSpike("24:6F:28:9A:12:03", 4.5);
+    await fetchDevices();
   };
 
-  const handleDropHeartbeat = () => {
-    if (simIntervalRef.current) {
-      clearInterval(simIntervalRef.current);
-      simIntervalRef.current = null;
-    }
+  const handleDropHeartbeat = async () => {
+    await api.simulationDropHeartbeat("24:6F:28:9A:12:01");
+    await fetchDevices();
   };
 
-  const handleReset = () => {
-    // Note: To properly reset baseline, we'd need a backend endpoint or restart. 
-    // We just stop simulation for now.
-    handleDropHeartbeat();
+  const handleReset = async () => {
+    await api.simulationReset();
+    await fetchDevices();
   };
 
   return (
