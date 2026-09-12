@@ -3,6 +3,8 @@ import { PillarNavigation } from './components/layout/PillarNavigation';
 import { Header } from './components/layout/Header';
 import { MetricStrip } from './components/dashboard/MetricStrip';
 import { SensorGrid } from './components/dashboard/SensorGrid';
+import { TopologyTree } from './components/topology/TopologyTree';
+import { ValidationConsole } from './components/topology/ValidationConsole';
 import { api } from './services/api';
 
 function App() {
@@ -10,6 +12,13 @@ function App() {
   const [devices, setDevices] = useState<any[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<any>(null);
   const simIntervalRef = useRef<number | null>(null);
+
+  // Temporary drawer rendering helper
+  const renderDrawer = () => {
+    if (!selectedDevice) return null;
+    const { DiagnosticDrawer } = require('./components/triage/DiagnosticDrawer');
+    return <DiagnosticDrawer deviceData={selectedDevice} onClose={() => setSelectedDevice(null)} />;
+  };
 
   const fetchDevices = async () => {
     try {
@@ -81,12 +90,27 @@ function App() {
         <PillarNavigation activePillar={activePillar} setActivePillar={setActivePillar} />
 
         {activePillar === 'ingestion' && (
-          <div className="max-w-7xl mx-auto mt-6">
-            <MetricStrip devices={devices} />
-            <SensorGrid devices={devices} onOpenDrawer={setSelectedDevice} />
+          <div className="max-w-[1600px] mx-auto mt-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Left Column: Topology */}
+            <div className="flex flex-col gap-6">
+              <div className="flex-1 min-h-[300px]">
+                <TopologyTree />
+              </div>
+              <div className="flex-1 min-h-[300px]">
+                <ValidationConsole />
+              </div>
+            </div>
+
+            {/* Right Column: Telemetry Matrix */}
+            <div className="lg:col-span-3">
+              <MetricStrip devices={devices} />
+              <SensorGrid devices={devices} onOpenDrawer={setSelectedDevice} />
+            </div>
           </div>
         )}
       </main>
+      
+      {renderDrawer()}
     </div>
   );
 }
