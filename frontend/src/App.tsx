@@ -1,10 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PillarNavigation } from './components/PillarNavigation';
 import { DeviceRegistration } from './components/DeviceRegistration';
+import { TelemetryDashboard } from './components/TelemetryDashboard';
+import { TopologyValidatorView } from './components/TopologyValidatorView';
+import { TelemetrySimulator } from './components/TelemetrySimulator';
 import { Activity } from 'lucide-react';
+import { api } from './services/api';
 
 function App() {
   const [activePillar, setActivePillar] = useState<'ingestion' | 'command' | 'topology'>('ingestion');
+  const [devices, setDevices] = useState<any[]>([]);
+
+  const fetchDevices = async () => {
+    try {
+      const data = await api.getAllDevices();
+      setDevices(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchDevices();
+    const interval = setInterval(fetchDevices, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
@@ -32,12 +52,12 @@ function App() {
           {activePillar === 'ingestion' && (
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               <div className="lg:col-span-1 space-y-6">
-                <DeviceRegistration onRegistered={() => console.log('Refetch devices...')} />
+                <DeviceRegistration onRegistered={fetchDevices} />
+                <TelemetrySimulator devices={devices} />
+                <TopologyValidatorView />
               </div>
               <div className="lg:col-span-3">
-                <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-6 h-full min-h-[400px] flex items-center justify-center">
-                  <p className="text-slate-500">Telemetry Dashboard implementation goes here...</p>
-                </div>
+                <TelemetryDashboard devices={devices} />
               </div>
             </div>
           )}
