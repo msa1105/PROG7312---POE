@@ -3,9 +3,13 @@ import { Server, Activity, Plus } from 'lucide-react';
 
 type HeaderProps = {
   onRegisterClick: () => void;
+  onBurst: () => void;
+  onInjectSpike: () => void;
+  onDropHeartbeat: () => void;
+  onReset: () => void;
 };
 
-export const Header = ({ onRegisterClick }: HeaderProps) => {
+export const Header = ({ onRegisterClick, onBurst, onInjectSpike, onDropHeartbeat, onReset }: HeaderProps) => {
   const [time, setTime] = useState(new Date().toISOString().substring(11, 19));
 
   useEffect(() => {
@@ -43,16 +47,16 @@ export const Header = ({ onRegisterClick }: HeaderProps) => {
           Simulation Control Panel
         </div>
         <div className="flex gap-2">
-          <button className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-sm transition-colors">
+          <button onClick={onBurst} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-sm transition-colors">
             Burst 5,000 Pkts
           </button>
-          <button className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-sm transition-colors">
+          <button onClick={onInjectSpike} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-sm transition-colors">
             Inject +4σ Spike
           </button>
-          <button className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-sm transition-colors">
+          <button onClick={onDropHeartbeat} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-sm transition-colors">
             Drop Node Heartbeat
           </button>
-          <button className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-sm transition-colors">
+          <button onClick={onReset} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-sm transition-colors">
             Reset Baseline
           </button>
           
