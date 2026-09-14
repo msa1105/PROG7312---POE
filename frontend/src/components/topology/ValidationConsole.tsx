@@ -58,7 +58,7 @@ export const ValidationConsole = () => {
         </p>
 
         <textarea 
-          className="w-full h-48 bg-zinc-950 border border-zinc-800 rounded-sm p-3 text-zinc-300 font-mono text-xs outline-none focus:border-zinc-500 transition-colors resize-none"
+          className="w-full h-36 bg-zinc-950 border border-zinc-800 rounded-sm p-2.5 text-zinc-300 font-mono text-xs outline-none focus:border-zinc-500 transition-colors resize-none"
           value={jsonInput}
           onChange={e => setJsonInput(e.target.value)}
         />
@@ -66,14 +66,14 @@ export const ValidationConsole = () => {
         <button 
           onClick={handleValidate}
           disabled={loading}
-          className="bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-200 py-2 rounded-sm transition-colors flex justify-center items-center gap-2 border border-zinc-700"
+          className="bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-200 py-2 rounded-sm transition-colors flex justify-center items-center gap-2 border border-zinc-700 cursor-pointer text-xs"
         >
-          <ShieldAlert size={16} />
+          <ShieldAlert size={15} />
           {loading ? 'Executing...' : 'Run Recursive Hierarchy Audit'}
         </button>
 
         {/* Terminal Output */}
-        <div className="bg-zinc-950 border border-zinc-900 flex-1 p-3 rounded-sm text-xs text-zinc-400 overflow-y-auto min-h-[120px]">
+        <div className="bg-zinc-950 border border-zinc-900 p-2.5 rounded-sm text-xs text-zinc-400 overflow-y-auto max-h-36 min-h-[90px]">
           {logs.length === 0 && <span className="italic text-zinc-600">Waiting for execution...</span>}
           {logs.map((log, idx) => (
             <div key={idx} className={log.includes('[SUCCESS]') ? 'text-emerald-400' : log.includes('[FAILED]') || log.includes('[FATAL]') ? 'text-rose-400' : ''}>

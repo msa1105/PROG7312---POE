@@ -8,7 +8,7 @@ type PillarProps = {
 
 export const PillarNavigation = ({ activePillar, setActivePillar }: PillarProps) => {
   return (
-    <div className="flex flex-col md:flex-row gap-4 p-4 max-w-7xl mx-auto">
+    <div className="flex flex-col md:flex-row gap-4 p-4 max-w-[1600px] mx-auto">
       {/* Pillar 1: Ingestion */}
       <div 
         className={clsx(

@@ -44,7 +44,7 @@ export const SensorGrid = ({ devices, onOpenDrawer }: SensorGridProps) => {
   }, [devices]);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4">
       {devices.length === 0 && (
         <div className="col-span-full text-center p-12 border border-zinc-800 border-dashed rounded-sm text-zinc-500 font-mono text-sm">
           No active sensor nodes detected. Register a node to begin ingestion.

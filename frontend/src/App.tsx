@@ -9,11 +9,13 @@ import { ValidationConsole } from './components/topology/ValidationConsole';
 import { RegisterDeviceModal } from './components/modals/RegisterDeviceModal';
 import { DiagnosticDrawer } from './components/triage/DiagnosticDrawer';
 import { IncidentTriageCenter } from './components/triage/IncidentTriageCenter';
+import { Network, Terminal, Activity } from 'lucide-react';
 import { api } from './services/api';
 
 function App() {
   const [viewMode, setViewMode] = useState<'landing' | 'dashboard'>('landing');
   const [activePillar, setActivePillar] = useState<'ingestion' | 'command' | 'topology'>('ingestion');
+  const [topologyTab, setTopologyTab] = useState<'tree' | 'console'>('tree');
   const [devices, setDevices] = useState<any[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<any>(null);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
@@ -58,7 +60,7 @@ function App() {
   const handleReportIncidentFromDrawer = (mac: string) => {
     setTargetIncidentMac(mac);
     setShowTriageDeck(true);
-    setSelectedDevice(null); // Close drawer to show triage deck
+    setSelectedDevice(null);
   };
 
   return (
@@ -81,12 +83,12 @@ function App() {
             activeTriageCount={devices.filter(d => d.latestTelemetry?.isAnomaly).length}
           />
 
-          <main className="flex-1 p-4">
+          <main className="flex-1 p-4 max-w-[1600px] w-full mx-auto">
             <PillarNavigation activePillar={activePillar} setActivePillar={setActivePillar} />
 
             {/* Dynamic Incident Triage & Engagement Deck */}
             {showTriageDeck && (
-              <div className="max-w-[1600px] mx-auto mt-4 mb-6 animate-in slide-in-from-top duration-300">
+              <div className="mt-4 mb-6 animate-in slide-in-from-top duration-300">
                 <IncidentTriageCenter 
                   activeDeviceMac={targetIncidentMac}
                   onRefreshDevices={fetchDevices}
@@ -94,36 +96,71 @@ function App() {
               </div>
             )}
 
-            {/* HCI Research Strategy Theoretical Alignment Ribbon */}
-            <div className="max-w-[1600px] mx-auto px-4 py-2 mt-2 bg-zinc-900/40 border border-zinc-800/80 rounded-sm flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-zinc-400">
-              <div className="flex items-center gap-2">
-                <span className="text-zinc-500 uppercase tracking-widest font-bold">Research Engagement Strategy:</span>
-                <span className="text-emerald-400 font-bold">Selective Visual Highlighting &amp; Hierarchical Progressive Disclosure</span>
-                <span className="text-zinc-500 hidden md:inline">(Endsley 1995 • Shneiderman 1996 • Sweller 1988)</span>
-              </div>
-              <div className="flex items-center gap-3 text-zinc-500">
-                <span>Reliability Benchmarking (Sailer 2017)</span>
-                <span>•</span>
-                <span>Actionable HITL Triage (Parasuraman 2000)</span>
-              </div>
-            </div>
-
             {activePillar === 'ingestion' && (
-              <div className="max-w-[1600px] mx-auto mt-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {/* Left Column: Recursive Topology & Validation Console */}
-                <div className="flex flex-col gap-6">
-                  <div className="flex-1 min-h-[300px]">
-                    <TopologyTree />
-                  </div>
-                  <div className="flex-1 min-h-[300px]">
-                    <ValidationConsole />
-                  </div>
-                </div>
+              <div className="mt-4 space-y-6">
+                {/* Full Width Metric Strip across top */}
+                <MetricStrip devices={devices} />
 
-                {/* Right Column: Ingestion Matrix & Sparkline Telemetry */}
-                <div className="lg:col-span-3">
-                  <MetricStrip devices={devices} />
-                  <SensorGrid devices={devices} onOpenDrawer={setSelectedDevice} />
+                {/* Main Content Grid */}
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                  {/* Left: Sensor Ingestion Matrix (8 cols on XL) */}
+                  <div className="xl:col-span-8">
+                    <div className="flex items-center justify-between mb-3 border-b border-zinc-800/80 pb-2">
+                      <div className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-2">
+                        <Activity size={14} className="text-emerald-400" />
+                        Live Ingestion Matrix ({devices.length} Edge Nodes)
+                      </div>
+                      <div className="text-[11px] font-mono text-zinc-500 hidden sm:block">
+                        Click any node card for Deep Packet Triage &amp; C# Struct Operations
+                      </div>
+                    </div>
+                    <SensorGrid devices={devices} onOpenDrawer={setSelectedDevice} />
+                  </div>
+
+                  {/* Right: Topology & Audit Console with Tabs (4 cols on XL) */}
+                  <div className="xl:col-span-4 flex flex-col gap-3">
+                    <div className="flex items-center justify-between bg-zinc-950 p-1.5 rounded border border-zinc-800 text-xs font-mono">
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => setTopologyTab('tree')}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors cursor-pointer ${
+                            topologyTab === 'tree' 
+                              ? 'bg-zinc-800 text-zinc-100 font-bold border border-zinc-700' 
+                              : 'text-zinc-500 hover:text-zinc-300'
+                          }`}
+                        >
+                          <Network size={13} />
+                          <span>Mesh Tree</span>
+                        </button>
+                        <button
+                          onClick={() => setTopologyTab('console')}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors cursor-pointer ${
+                            topologyTab === 'console' 
+                              ? 'bg-zinc-800 text-zinc-100 font-bold border border-zinc-700' 
+                              : 'text-zinc-500 hover:text-zinc-300'
+                          }`}
+                        >
+                          <Terminal size={13} />
+                          <span>Audit Console</span>
+                        </button>
+                      </div>
+                      <span className="text-[10px] font-mono text-zinc-500 uppercase pr-1">
+                        {topologyTab === 'tree' ? 'Recursive Hierarchy' : 'JSON Validator'}
+                      </span>
+                    </div>
+
+                    <div className="w-full">
+                      {topologyTab === 'tree' ? (
+                        <div className="min-h-[440px]">
+                          <TopologyTree />
+                        </div>
+                      ) : (
+                        <div className="min-h-[440px]">
+                          <ValidationConsole />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

@@ -45,36 +45,38 @@ export const SensorCard = ({ deviceData, history, currentTime, onOpenDrawer }: S
       )}
     >
       {/* Header */}
-      <div className="flex justify-between items-start mb-4 border-b border-zinc-800/50 pb-3">
-        <div>
-          <h3 className="font-mono text-zinc-100 uppercase tracking-widest text-sm flex items-center gap-2">
-            {device.macAddress}
-            <span className={clsx("px-1.5 py-0.5 text-[10px] rounded-sm",
-              device.category === 0 ? "bg-cyan-950 text-cyan-400" :
-              device.category === 1 ? "bg-yellow-950 text-yellow-400" :
-              "bg-purple-950 text-purple-400"
+      <div className="flex flex-wrap justify-between items-start gap-2 mb-3 border-b border-zinc-800/50 pb-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5 font-mono text-zinc-100 text-xs">
+            <span className="font-bold tracking-wider">{device.macAddress}</span>
+            <span className={clsx("px-1.5 py-0.5 text-[9px] font-bold rounded-sm uppercase tracking-wide",
+              device.category === 0 ? "bg-cyan-950 text-cyan-400 border border-cyan-800/60" :
+              device.category === 1 ? "bg-yellow-950 text-yellow-400 border border-yellow-800/60" :
+              "bg-purple-950 text-purple-400 border border-purple-800/60"
             )}>
-              {device.category === 0 ? 'Environmental' : device.category === 1 ? 'PowerConsumption' : 'Actuator'}
+              {device.category === 0 ? 'Environmental' : device.category === 1 ? 'Power' : 'Actuator'}
             </span>
-          </h3>
-          <p className="text-xs text-zinc-500 mt-1">
+          </div>
+          <p className="text-[11px] text-zinc-500 mt-1 truncate" title={device.deploymentLocation}>
             Location: {device.deploymentLocation}
           </p>
         </div>
         
-        {isOffline ? (
-          <span className="text-[10px] font-mono bg-amber-950 text-amber-500 px-2 py-1 rounded-sm border border-amber-900">
-            OFFLINE
-          </span>
-        ) : isAnomaly ? (
-          <span className="text-[10px] font-mono bg-rose-950 text-rose-400 px-2 py-1 rounded-sm border border-rose-900">
-            OUTLIER DETECTED
-          </span>
-        ) : (
-          <span className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-2 py-1 rounded-sm">
-            NOMINAL
-          </span>
-        )}
+        <div className="shrink-0">
+          {isOffline ? (
+            <span className="text-[9px] font-mono font-bold bg-amber-950 text-amber-400 px-1.5 py-0.5 rounded-sm border border-amber-900">
+              OFFLINE
+            </span>
+          ) : isAnomaly ? (
+            <span className="text-[9px] font-mono font-bold bg-rose-950 text-rose-400 px-1.5 py-0.5 rounded-sm border border-rose-900 animate-pulse">
+              OUTLIER
+            </span>
+          ) : (
+            <span className="text-[9px] font-mono bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded-sm border border-zinc-700/60">
+              NOMINAL
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Body: Values */}
