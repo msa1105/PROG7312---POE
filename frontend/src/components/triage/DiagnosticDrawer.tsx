@@ -1,4 +1,4 @@
-import { X, SearchCode, Database } from 'lucide-react';
+import { X, SearchCode, Database, AlertOctagon } from 'lucide-react';
 import { OperatorOverloadBox } from './OperatorOverloadBox';
 import { JaggedBufferView } from './JaggedBufferView';
 import { AttachmentManager } from './AttachmentManager';
@@ -6,9 +6,11 @@ import { AttachmentManager } from './AttachmentManager';
 type DrawerProps = {
   deviceData: any;
   onClose: () => void;
+  onRefresh?: () => void;
+  onReportIncident?: (mac: string) => void;
 };
 
-export const DiagnosticDrawer = ({ deviceData, onClose }: DrawerProps) => {
+export const DiagnosticDrawer = ({ deviceData, onClose, onRefresh, onReportIncident }: DrawerProps) => {
   const { device, latestTelemetry } = deviceData;
 
   return (
@@ -35,12 +37,23 @@ export const DiagnosticDrawer = ({ deviceData, onClose }: DrawerProps) => {
               Level 3 Deep Packet Triage // {device.deploymentLocation}
             </div>
           </div>
-          <button 
-            onClick={onClose} 
-            className="p-2 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            {onReportIncident && (
+              <button
+                onClick={() => onReportIncident(device.macAddress)}
+                className="px-2.5 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-bold rounded flex items-center gap-1 transition-colors"
+                title="Flag Anomaly & Report Issue"
+              >
+                <AlertOctagon size={13} /> Flag Issue
+              </button>
+            )}
+            <button 
+              onClick={onClose} 
+              className="p-2 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -65,19 +78,23 @@ export const DiagnosticDrawer = ({ deviceData, onClose }: DrawerProps) => {
                 <span className="col-span-2 text-emerald-400">{latestTelemetry?.timestamp || 'N/A'} (UTC)</span>
                 
                 <span className="text-zinc-500">Value:</span>
-                <span className="col-span-2 text-yellow-400">{latestTelemetry?.value?.toFixed(2) || 'N/A'} {latestTelemetry?.metricUnit}</span>
+                <span className="col-span-2 text-yellow-400">
+                  {typeof latestTelemetry?.value === 'number' 
+                    ? latestTelemetry?.value?.toFixed(2) 
+                    : (latestTelemetry?.value?.toString() || 'N/A')} {latestTelemetry?.metricUnit}
+                </span>
               </div>
             </div>
           </section>
 
-          {/* Operator Overload Calculator (Mocked for Demo based on PRD) */}
+          {/* Operator Overload Calculator (Live .NET API Struct Engine) */}
           <OperatorOverloadBox device={device} telemetry={latestTelemetry} />
 
-          {/* Jagged Buffer Dump (Mocked based on PRD) */}
+          {/* Jagged Buffer Dump (Live .NET API double[4][] Buffer) */}
           <JaggedBufferView telemetry={latestTelemetry} />
 
-          {/* Attachments */}
-          <AttachmentManager device={device} />
+          {/* Attachments with AES-256 Encryption */}
+          <AttachmentManager device={device} onRefresh={onRefresh} />
 
         </div>
       </div>

@@ -1,7 +1,15 @@
 import axios from 'axios';
-import type { SensorDevice, TelemetryPacket } from '../types/telemetry';
+import type { 
+  SensorDevice, 
+  TelemetryPacket, 
+  IncidentIssue, 
+  OperatorEngagementStats, 
+  PowerAggregationResult, 
+  JaggedBufferStatus, 
+  GatewayHealth 
+} from '../types/telemetry';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'http://localhost:5240/api';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -11,6 +19,12 @@ const apiClient = axios.create({
 });
 
 export const api = {
+  // Gateway Status
+  getGatewayHealth: async (): Promise<GatewayHealth> => {
+    const response = await apiClient.get<GatewayHealth>('/health');
+    return response.data;
+  },
+
   // Device Registry
   registerDevice: async (device: Partial<SensorDevice>): Promise<SensorDevice> => {
     const response = await apiClient.post<SensorDevice>('/sensors/register', device);
@@ -38,7 +52,22 @@ export const api = {
     return response.data;
   },
 
-  // Attachments
+  // Jagged Buffer
+  getJaggedBufferStatus: async (): Promise<JaggedBufferStatus> => {
+    const response = await apiClient.get<JaggedBufferStatus>('/telemetry/buffer/status');
+    return response.data;
+  },
+
+  // Operator Overloading API
+  aggregatePowerMetrics: async (wattsMeter1: number, wattsMeter2: number): Promise<PowerAggregationResult> => {
+    const response = await apiClient.post<PowerAggregationResult>('/telemetry/power-metrics/aggregate', {
+      wattsMeter1,
+      wattsMeter2
+    });
+    return response.data;
+  },
+
+  // Attachments (Multipart with AES-256 Encryption at Rest)
   uploadAttachment: async (macAddress: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -49,10 +78,38 @@ export const api = {
     });
     return response.data;
   },
+
+  getAttachmentDownloadUrl: (macAddress: string, fileName: string): string => {
+    return `${API_BASE_URL}/sensors/${encodeURIComponent(macAddress)}/attachments/${encodeURIComponent(fileName)}`;
+  },
   
   // Topology Validation
   validateTopology: async (rootNode: any) => {
     const response = await apiClient.post('/topology/validate', rootNode);
+    return response.data;
+  },
+
+  // Dynamic Engagement: Issues & Triage
+  getIssues: async (macAddress?: string, status?: string): Promise<IncidentIssue[]> => {
+    const params: Record<string, string> = {};
+    if (macAddress) params.macAddress = macAddress;
+    if (status) params.status = status;
+    const response = await apiClient.get<IncidentIssue[]>('/issues', { params });
+    return response.data;
+  },
+
+  reportIssue: async (issue: Partial<IncidentIssue>): Promise<IncidentIssue> => {
+    const response = await apiClient.post<IncidentIssue>('/issues', issue);
+    return response.data;
+  },
+
+  updateIssueStatus: async (id: string, status: number | string, notes?: string): Promise<IncidentIssue> => {
+    const response = await apiClient.patch<IncidentIssue>(`/issues/${id}/status`, { status, notes });
+    return response.data;
+  },
+
+  getEngagementStats: async (): Promise<OperatorEngagementStats> => {
+    const response = await apiClient.get<OperatorEngagementStats>('/issues/stats');
     return response.data;
   },
 

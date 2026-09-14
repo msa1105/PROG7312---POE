@@ -1,6 +1,6 @@
 using SmartX.Api.Models;
 using System.IO;
-using System.Collections.Generic;
+using System.Text;
 
 namespace SmartX.Api.Services;
 
@@ -8,11 +8,13 @@ public class DataSeeder
 {
     private readonly DeviceRegistryService _registry;
     private readonly JaggedTelemetryBuffer _buffer;
+    private readonly FileEncryptionService _encryptionService;
 
-    public DataSeeder(DeviceRegistryService registry, JaggedTelemetryBuffer buffer)
+    public DataSeeder(DeviceRegistryService registry, JaggedTelemetryBuffer buffer, FileEncryptionService encryptionService)
     {
         _registry = registry;
         _buffer = buffer;
+        _encryptionService = encryptionService;
     }
 
     public void Seed()
@@ -37,16 +39,36 @@ public class DataSeeder
             _buffer.LoadChannelBatch(ch, readings);
         }
 
-        // 3. Create mock physical attachment files on disk
+        // 3. Create mock physical attachment files with AES-256 encryption at rest
         var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "Uploads", "246F289A1201");
         Directory.CreateDirectory(uploadsDir);
         
-        var fwPath = Path.Combine(uploadsDir, "esp32_firmware_v2.json");
-        File.WriteAllText(fwPath, "{\"version\": \"v2.0\", \"built\": \"2026-09-12\"}");
-        _registry.AddAttachment("24:6F:28:9A:12:01", new DeviceAttachment { FileName = "esp32_firmware_v2.json", FilePath = fwPath, SizeBytes = new FileInfo(fwPath).Length, MimeType = "application/json" });
+        var fwRawBytes = Encoding.UTF8.GetBytes("{\"version\": \"v2.0-mesh\", \"built\": \"2026-09-12\", \"encryption\": \"AES-256-CBC\"}");
+        var fwEncPath = Path.Combine(uploadsDir, "esp32_firmware_v2.json.enc");
+        using (var mem = new MemoryStream(fwRawBytes))
+        {
+            _encryptionService.EncryptStreamAsync(mem, fwEncPath).GetAwaiter().GetResult();
+        }
+        _registry.AddAttachment("24:6F:28:9A:12:01", new DeviceAttachment 
+        { 
+            FileName = "esp32_firmware_v2.json", 
+            FilePath = fwEncPath, 
+            SizeBytes = fwRawBytes.Length, 
+            MimeType = "application/json" 
+        });
 
-        var logPath = Path.Combine(uploadsDir, "hardware_diag.log");
-        File.WriteAllText(logPath, "[INFO] Hardware init ok\n[WARN] High load detected");
-        _registry.AddAttachment("24:6F:28:9A:12:01", new DeviceAttachment { FileName = "hardware_diag.log", FilePath = logPath, SizeBytes = new FileInfo(logPath).Length, MimeType = "text/plain" });
+        var logRawBytes = Encoding.UTF8.GetBytes("[INFO] Hardware AES boot ok\n[INFO] Mesh node 24:6F:28:9A:12:01 online\n[WARN] High load transient recorded");
+        var logEncPath = Path.Combine(uploadsDir, "hardware_diag.log.enc");
+        using (var mem = new MemoryStream(logRawBytes))
+        {
+            _encryptionService.EncryptStreamAsync(mem, logEncPath).GetAwaiter().GetResult();
+        }
+        _registry.AddAttachment("24:6F:28:9A:12:01", new DeviceAttachment 
+        { 
+            FileName = "hardware_diag.log", 
+            FilePath = logEncPath, 
+            SizeBytes = logRawBytes.Length, 
+            MimeType = "text/plain" 
+        });
     }
 }
