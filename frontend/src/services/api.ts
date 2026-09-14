@@ -9,7 +9,7 @@ import type {
   GatewayHealth 
 } from '../types/telemetry';
 
-const API_BASE_URL = 'http://localhost:5240/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.port === '3000' ? '/api' : 'http://localhost:5240/api');
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
