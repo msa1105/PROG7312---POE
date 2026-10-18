@@ -27,6 +27,13 @@ public static class TopologyEngine
 {
     public const string PathSeparator = ">";
 
+    /// <summary>The zone a device belongs to: its normalised deployment path without the final (device) segment.</summary>
+    public static string ParentPath(string deploymentLocation)
+    {
+        var segments = deploymentLocation.Split(PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return segments.Length > 1 ? string.Join($" {PathSeparator} ", segments[..^1]) : string.Empty;
+    }
+
     public static (bool IsValid, string Reason) ValidateHierarchy(DeploymentNode node, HashSet<string> visitedIds, List<string>? auditTrail = null, int depth = 0)
     {
         if (string.IsNullOrWhiteSpace(node.NodeId))

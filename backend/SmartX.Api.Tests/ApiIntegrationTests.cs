@@ -326,6 +326,24 @@ public class ApiCommandStreamTests : IClassFixture<SmartXApiFactory>
     }
 
     [Fact]
+    public async Task IrrigationAck_RestartsTheBaselineOfSensorsInTheSameZone()
+    {
+        for (int i = 0; i < 25; i++) await _client.SendMoistureAsync(Api.RackA, 50 + i % 3);
+        await _client.WaitForDeviceAsync(Api.RackA, v => v.GetProperty("latestTelemetry").GetProperty("rollingMean").ValueKind == JsonValueKind.Number, "baseline established");
+
+        await _client.SendStateAsync(Api.Solenoid, false);
+        await _client.WaitForDeviceAsync(Api.Solenoid, v => v.GetProperty("reportedState").ValueKind == JsonValueKind.False, "solenoid OFF");
+        await PollAsDeviceAsync(Api.Solenoid);
+        await IssueAsync(Api.Solenoid, true);
+        var command = Assert.Single(await PollAsDeviceAsync(Api.Solenoid));
+        await _client.PostAsJsonAsync($"/api/devices/{Api.Escape(Api.Solenoid)}/commands/{command.GetProperty("id").GetString()}/ack", new { success = true, appliedState = true });
+
+        await _client.SendMoistureAsync(Api.RackA, 52.5);
+        var view = await _client.WaitForDeviceAsync(Api.RackA, v => Api.LatestValue(v) == 52.5, "post-ack reading");
+        Assert.Equal(JsonValueKind.Null, view.GetProperty("latestTelemetry").GetProperty("rollingMean").ValueKind); // warming up a fresh baseline
+    }
+
+    [Fact]
     public async Task BulkCommand_IsUndoneAsOneBatch()
     {
         await _client.SendStateAsync(Api.Hvac, true);

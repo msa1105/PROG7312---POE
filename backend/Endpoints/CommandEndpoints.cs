@@ -79,9 +79,18 @@ public static class CommandEndpoints
             var command = dispatcher.Acknowledge(device.MacAddress, id, req.Success, req.AppliedState, req.Message);
             if (command == null) return Results.NotFound(new { error = "Command not found for this device." });
 
-            // A commanded state change (e.g. relay switched off) is intentional, not an anomaly: restart the baseline
+            // A commanded state change (e.g. relay switched off) is intentional, not an anomaly: restart the baseline.
+            // Opening/closing an irrigation actuator also changes the trend of every moisture sensor in its zone.
             if (req.Success && command.PreviousState != req.AppliedState)
+            {
                 anomaly.ResetWindow(device.MacAddress);
+                if (device.Category == SensorCategory.Actuator)
+                {
+                    var zone = TopologyEngine.ParentPath(device.DeploymentLocation);
+                    foreach (var sensor in registry.GetAllDevices().Where(d => d.Category == SensorCategory.Environmental && TopologyEngine.ParentPath(d.DeploymentLocation) == zone))
+                        anomaly.ResetWindow(sensor.MacAddress);
+                }
+            }
 
             broadcaster.MarkDeviceDirty(device.MacAddress);
             return Results.Ok(command);
