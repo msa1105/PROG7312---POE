@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api } from '../../services/api';
+import { api, getApiErrorMessage } from '../../services/api';
 import { Terminal, ShieldAlert } from 'lucide-react';
 
 export const ValidationConsole = () => {
@@ -22,26 +22,28 @@ export const ValidationConsole = () => {
 
   const handleValidate = async () => {
     setLoading(true);
-    setLogs(["[AUDIT] Validating Root: AgriTech Facility Alpha..."]);
 
+    let parsed: { nodeId?: string };
     try {
-      const parsed = JSON.parse(jsonInput);
+      parsed = JSON.parse(jsonInput);
+    } catch {
+      setLogs(["[FATAL] Invalid JSON format."]);
+      setLoading(false);
+      return;
+    }
+
+    setLogs([`[AUDIT] Validating Root: ${parsed?.nodeId || '(missing nodeId)'}...`]);
+    try {
       const res = await api.validateTopology(parsed);
-      
       setLogs(prev => [
-        ...prev, 
-        "[RECURSION] Node 'Greenhouse 1' OK (Active, No Cycles)",
+        ...prev,
+        ...(res.auditTrail ?? []).filter(line => !line.startsWith('[FAILED]')),
         res.isValid 
           ? `[SUCCESS] Hierarchy Traversed. No Cyclic References Detected.`
-          : `[FAILED] ${res.reason}`
+          : `[FAILED] ${res.reason ?? 'Payload does not match the DeploymentNode schema.'}`
       ]);
-
-    } catch (e: any) {
-      if (e.response && e.response.data) {
-        setLogs(prev => [...prev, `[FAILED] ${e.response.data.reason}`]);
-      } else {
-        setLogs(prev => [...prev, "[FATAL] Invalid JSON format."]);
-      }
+    } catch (e: unknown) {
+      setLogs(prev => [...prev, `[FATAL] ${getApiErrorMessage(e, 'Gateway rejected the topology payload.')}`]);
     }
     setLoading(false);
   };

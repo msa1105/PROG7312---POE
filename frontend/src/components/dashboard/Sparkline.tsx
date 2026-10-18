@@ -19,9 +19,13 @@ export const Sparkline = ({ data, isAnomaly, isOffline }: SparklineProps) => {
 
     if (data.length === 0) return;
 
-    const max = Math.max(...data, 1);
-    const min = Math.min(...data, 0);
-    const range = max - min || 1;
+    // Scale to the data's own range (with padding) so small fluctuations around large baselines stay visible
+    const rawMax = Math.max(...data);
+    const rawMin = Math.min(...data);
+    const padding = (rawMax - rawMin) * 0.1 || Math.abs(rawMax) * 0.01 || 1;
+    const max = rawMax + padding;
+    const min = rawMin - padding;
+    const range = max - min;
 
     const stepX = canvas.width / (Math.max(data.length - 1, 1));
     

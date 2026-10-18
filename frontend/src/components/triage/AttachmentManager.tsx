@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 import { UploadCloud, File, Download, ShieldCheck, Lock } from 'lucide-react';
-import { api } from '../../services/api';
+import { api, getApiErrorMessage } from '../../services/api';
+import type { DeviceAttachment, SensorDevice } from '../../types/telemetry';
 
 type AttachmentProps = {
-  device: any;
+  device: SensorDevice;
   onRefresh?: () => void;
 };
 
@@ -25,8 +26,8 @@ export const AttachmentManager = ({ device, onRefresh }: AttachmentProps) => {
       setSuccessMsg(`File uploaded and encrypted with AES-256-CBC at rest.`);
       setTimeout(() => setSuccessMsg(null), 4000);
       if (onRefresh) onRefresh();
-    } catch (err: any) {
-      setError(err.response?.data || err.message || 'Failed to upload attachment.');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to upload attachment.'));
     }
     setUploading(false);
     if (fileInputRef.current) {
@@ -48,10 +49,10 @@ export const AttachmentManager = ({ device, onRefresh }: AttachmentProps) => {
       <div className="bg-zinc-900 border border-zinc-800 rounded-sm p-4 text-xs text-zinc-300">
         {device.attachments && device.attachments.length > 0 ? (
           <ul className="space-y-2 mb-4">
-            {device.attachments.map((att: any, i: number) => {
+            {device.attachments.map((att: DeviceAttachment) => {
               const downloadUrl = api.getAttachmentDownloadUrl(device.macAddress, att.fileName);
               return (
-                <li key={i} className="flex justify-between items-center bg-zinc-950 p-2.5 border border-zinc-800 rounded-sm">
+                <li key={att.fileName} className="flex justify-between items-center bg-zinc-950 p-2.5 border border-zinc-800 rounded-sm">
                   <span className="flex items-center gap-2 text-zinc-200">
                     <File size={13} className="text-zinc-400 shrink-0" />
                     <span className="truncate max-w-[180px]">{att.fileName}</span>
