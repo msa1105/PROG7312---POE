@@ -32,6 +32,7 @@ public record IngestionQueueStats(
     int StandardCapacity,
     int SimulatedProcessingCostMs,
     PriorityBypass? LastBypass,
+    PriorityBypass? LargestBypass,
     List<PriorityBypass> RecentBypasses);
 
 /// <summary>
@@ -51,6 +52,7 @@ public class TelemetryIngestionQueue
     private readonly Queue<IngestionEnvelope> _standard = new();
     private readonly PriorityQueue<IngestionEnvelope, (int Severity, long Sequence)> _priority = new();
     private readonly LinkedList<PriorityBypass> _recentBypasses = new();
+    private PriorityBypass? _largestBypass;
     private readonly SemaphoreSlim _signal = new(0);
     private readonly object _lock = new();
 
@@ -121,6 +123,7 @@ public class TelemetryIngestionQueue
                     var bypass = new PriorityBypass(sequence, envelope.Item.MacAddress, envelope.Classification?.Reason ?? "Critical reading",
                         overtook, Math.Round(waitMs, 2), DateTime.UtcNow);
                     _recentBypasses.AddFirst(bypass);
+                    if (_largestBypass == null || bypass.OvertookStandardPackets >= _largestBypass.OvertookStandardPackets) _largestBypass = bypass;
                     if (_recentBypasses.Count > MaxRecentBypasses) _recentBypasses.RemoveLast();
                 }
                 return true;
@@ -150,6 +153,7 @@ public class TelemetryIngestionQueue
                 StandardCapacity,
                 SimulatedProcessingCostMs,
                 _recentBypasses.First?.Value,
+                _largestBypass,
                 _recentBypasses.ToList());
         }
     }
@@ -161,6 +165,7 @@ public class TelemetryIngestionQueue
             _standardCounters.Reset();
             _priorityCounters.Reset();
             _recentBypasses.Clear();
+            _largestBypass = null;
             _rejected = 0;
         }
     }
