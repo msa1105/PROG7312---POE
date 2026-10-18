@@ -82,6 +82,8 @@ export interface DeviceView {
   isControllable: boolean;
   reportedState: boolean | null;
   pendingCommands: number;
+  /** Client-side optimistic overlay: present while a local change awaits server confirmation. */
+  optimistic?: { pendingState?: boolean; unconfirmedRegistration?: boolean };
 }
 
 export interface PingResult {
@@ -239,6 +241,8 @@ export interface CommandBatch {
   revertsBatchId: string | null;
   isReverted: boolean;
   revertedAt: string | null;
+  /** True for a batch shown locally before the API has accepted it. */
+  optimistic?: boolean;
 }
 
 export interface CommandStackSummary {
