@@ -5,6 +5,7 @@ using SmartX.Api.Models;
 /// <summary>
 /// Manages multi-channel telemetry batches using advanced jagged arrays (double[][])
 /// before transitioning sequential historical batches into optimized collections.
+/// Reference: Arrays - jagged arrays (C# reference, Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/arrays
 /// </summary>
 public class JaggedTelemetryBuffer
 {

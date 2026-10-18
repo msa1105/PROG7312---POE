@@ -1,5 +1,8 @@
 namespace SmartX.Api.Models;
 
+/// <summary>
+/// Reference: Operator overloading (C# reference, Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/operator-overloading
+/// </summary>
 public readonly struct PowerMetric : IEquatable<PowerMetric>, IComparable<PowerMetric>
 {
     public double Watts { get; init; }

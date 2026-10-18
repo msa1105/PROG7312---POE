@@ -5,6 +5,7 @@ namespace SmartX.Api.Models;
 /// <summary>
 /// A custom, high-performance bounded generic collection optimized for gateway telemetry pipelines.
 /// Fulfills the requirement for a custom collection data structure that tracks ingestion states.
+/// Reference: IReadOnlyCollection<T> / IEnumerable<T> (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.ireadonlycollection-1
 /// </summary>
 /// <typeparam name="T">The telemetry packet or reading type.</typeparam>
 public class BoundedTelemetryCollection<T> : IReadOnlyCollection<T>

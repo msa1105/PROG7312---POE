@@ -9,6 +9,9 @@ namespace SmartX.Api.Services;
 ///
 /// File format (encrypt-then-MAC): [16-byte random IV][AES-256-CBC ciphertext][32-byte HMAC-SHA256 tag over IV + ciphertext].
 /// Separate encryption and MAC keys are derived from the gateway master key with HKDF-SHA256.
+/// Reference: Encrypt-then-MAC: Bellare, M. and Namprempre, C. (2000) 'Authenticated Encryption: Relations among Notions and Analysis of the Generic Composition Paradigm', ASIACRYPT 2000, LNCS 1976, pp. 531-545.
+/// Reference: HKDF: Krawczyk, H. and Eronen, P. (2010) RFC 5869 - https://www.rfc-editor.org/rfc/rfc5869
+/// Reference: CryptoStream / IncrementalHash / CryptographicOperations.FixedTimeEquals (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography
 /// </summary>
 public class FileEncryptionService
 {

@@ -5,6 +5,7 @@ namespace SmartX.Api.Services;
 /// <summary>
 /// Stores device attachments as encrypted blobs under the uploads root and tracks them on the device registry.
 /// Blob names are server-generated, so client-supplied file names never influence file-system paths.
+/// Reference: Upload files in ASP.NET Core - security considerations (Microsoft Learn) - https://learn.microsoft.com/en-us/aspnet/core/mvc/models/file-uploads
 /// </summary>
 public class AttachmentService
 {
