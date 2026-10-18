@@ -13,7 +13,8 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import type { GatewayHealth } from '../../types/telemetry';
-import { api } from '../../services/api';
+import { api, API_BASE_URL } from '../../services/api';
+import { formatDuration } from '../../utils/telemetry';
 
 type GatewayLandingProps = {
   onEnterIngestion: () => void;
@@ -24,6 +25,14 @@ export const GatewayLandingView = ({ onEnterIngestion, registeredDeviceCount }: 
   const [health, setHealth] = useState<GatewayHealth | null>(null);
   const [latency, setLatency] = useState<number | null>(null);
   const [lockedModal, setLockedModal] = useState<{ title: string; desc: string; milestone: string } | null>(null);
+  const [healthReceivedAt, setHealthReceivedAt] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+
+  // Uptime counter ticks locally every second between health polls
+  useEffect(() => {
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(tick);
+  }, []);
 
   useEffect(() => {
     const checkGateway = async () => {
@@ -32,8 +41,11 @@ export const GatewayLandingView = ({ onEnterIngestion, registeredDeviceCount }: 
         const data = await api.getGatewayHealth();
         setLatency(Math.round(performance.now() - t0));
         setHealth(data);
+        setHealthReceivedAt(Date.now());
       } catch (err) {
         console.warn('Backend offline or initializing:', err);
+        setHealth(null);
+        setLatency(null);
       }
     };
 
@@ -56,7 +68,7 @@ export const GatewayLandingView = ({ onEnterIngestion, registeredDeviceCount }: 
               Gateway Connection Status: <span className={health ? "text-emerald-400 font-bold" : "text-amber-400 font-bold"}>{health ? "ONLINE // 100% OPERATIONAL" : "CONNECTING TO .NET BACKEND..."}</span>
             </div>
             <div className="text-[11px] text-zinc-500 font-mono">
-              Target API: http://localhost:5240/api • Protocol: HTTP/2 Minimal API
+              Target API: {API_BASE_URL.startsWith('http') ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`} • REST over HTTP/1.1 • {health?.gatewayVersion ?? '.NET 10 Minimal API'}
             </div>
           </div>
         </div>
@@ -69,12 +81,21 @@ export const GatewayLandingView = ({ onEnterIngestion, registeredDeviceCount }: 
           <div className="h-6 w-px bg-zinc-800"></div>
           <div className="text-right">
             <span className="text-zinc-500">ACTIVE NODES: </span>
-            <span className="text-cyan-400 font-bold">{registeredDeviceCount} Connected</span>
+            <span className="text-cyan-400 font-bold">
+              {health ? `${health.activeDeviceCount}/${health.registeredDeviceCount}` : registeredDeviceCount} Connected
+            </span>
+          </div>
+          <div className="h-6 w-px bg-zinc-800"></div>
+          <div className="text-right">
+            <span className="text-zinc-500">UPTIME: </span>
+            <span className="text-zinc-200 font-bold tabular-nums">
+              {health ? formatDuration(health.uptimeSeconds + (now - healthReceivedAt) / 1000) : '--'}
+            </span>
           </div>
           <div className="h-6 w-px bg-zinc-800"></div>
           <div className="text-right">
             <span className="text-zinc-500">OPERATOR XP: </span>
-            <span className="text-purple-400 font-bold">{health?.operatorEngagement?.operatorXp || 200} XP</span>
+            <span className="text-purple-400 font-bold">{health?.operatorEngagement?.operatorXp ?? '--'} XP</span>
           </div>
         </div>
       </div>
