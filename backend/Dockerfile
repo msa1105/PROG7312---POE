@@ -11,5 +11,5 @@ WORKDIR /app
 COPY --from=build /app/publish .
 ENV ASPNETCORE_URLS=http://+:5000
 EXPOSE 5000
-RUN mkdir -p /app/uploads
+RUN mkdir -p /app/Uploads /app/keys
 ENTRYPOINT ["dotnet", "SmartX.Api.dll"]
