@@ -15,6 +15,19 @@ services:
     networks:
       - smartx-mesh-net
 
+  # ESP32 fleet simulator: sends telemetry and acknowledges commands over HTTP like real devices
+  simulator:
+    build:
+      context: ./simulator
+      dockerfile: Dockerfile
+    environment:
+      - SMARTX_API_URL=http://backend:5000
+    networks:
+      - smartx-mesh-net
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
