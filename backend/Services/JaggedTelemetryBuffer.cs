@@ -9,43 +9,52 @@ using SmartX.Api.Models;
 public class JaggedTelemetryBuffer
 {
     // 4 parallel ingestion channels with dynamic packet batch sizes
-    private readonly double[][] _rawChannels = new double[4][];
+    private readonly double[]?[] _rawChannels = new double[4][];
     private readonly object _lock = new();
 
     // Custom data structure to hold flushed ingestion states
     private readonly BoundedTelemetryCollection<TelemetryPacket<double>> _flushedBuffer = new(capacity: 10000);
 
+    public int ChannelCount => _rawChannels.Length;
+
     public void LoadChannelBatch(int channelIndex, double[] readings)
     {
+        if (channelIndex < 0 || channelIndex >= _rawChannels.Length)
+            throw new ArgumentOutOfRangeException(nameof(channelIndex), $"Channel index must be between 0 and {_rawChannels.Length - 1}.");
+        ArgumentNullException.ThrowIfNull(readings);
+
         lock (_lock)
         {
-            if (channelIndex >= 0 && channelIndex < _rawChannels.Length)
-                _rawChannels[channelIndex] = readings;
+            _rawChannels[channelIndex] = readings;
         }
     }
 
     /// <summary>
     /// Flushes raw jagged array channels into standard List<TelemetryPacket<double>>
-    /// and stores into the custom BoundedTelemetryCollection.
+    /// and stores into the custom BoundedTelemetryCollection. Flushed channels are drained (released),
+    /// so the same readings are never ingested twice. When <paramref name="channelIndex"/> is null, all channels flush.
     /// </summary>
-    public List<TelemetryPacket<double>> FlushToList(string macAddress, string unit)
+    public List<TelemetryPacket<double>> FlushToList(string macAddress, string unit, int? channelIndex = null)
     {
         lock (_lock)
         {
             var result = new List<TelemetryPacket<double>>();
             for (int i = 0; i < _rawChannels.Length; i++)
             {
-                if (_rawChannels[i] == null) continue;
-                for (int j = 0; j < _rawChannels[i].Length; j++)
+                if (channelIndex.HasValue && channelIndex.Value != i) continue;
+                var channel = _rawChannels[i];
+                if (channel == null) continue;
+                for (int j = 0; j < channel.Length; j++)
                 {
                     var packet = new TelemetryPacket<double>
                     {
                         MacAddress = macAddress,
-                        Value = _rawChannels[i][j],
+                        Value = channel[j],
                         MetricUnit = unit
                     };
                     result.Add(packet);
                 }
+                _rawChannels[i] = null; // drain the flushed channel
             }
 
             _flushedBuffer.AddRange(result);
