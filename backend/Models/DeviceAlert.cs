@@ -6,7 +6,16 @@ namespace SmartX.Api.Models;
 public enum AlertKind
 {
     Anomaly,
-    HeartbeatLost
+    HeartbeatLost,
+    ThresholdBreach
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<AlertSeverity>))]
+public enum AlertSeverity
+{
+    Critical = 0, // processed first by the priority queue
+    High = 1,
+    Warning = 2
 }
 
 /// <summary>
@@ -18,6 +27,7 @@ public class DeviceAlert
     public string Id { get; init; } = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
     public string MacAddress { get; init; } = string.Empty;
     public AlertKind Kind { get; init; }
+    public AlertSeverity Severity { get; init; } = AlertSeverity.Warning;
     public DateTime RaisedAt { get; init; } = DateTime.UtcNow;
     public string Message { get; init; } = string.Empty;
 
