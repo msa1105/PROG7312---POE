@@ -5,7 +5,7 @@ import type { CommandBatch, CommandState, CommandStatus } from '../../types/tele
 type CommandHistoryPanelProps = {
   commands: CommandState | null;
   onUndo: () => void;
-  undoing: boolean;
+  canUndo: boolean;
 };
 
 const statusStyle: Record<CommandStatus, string> = {
@@ -36,6 +36,7 @@ const BatchRow = ({ batch }: { batch: CommandBatch }) => (
         </span>
       )}
       {batch.isReverted && <span className="text-[9px] px-1 rounded border border-zinc-700 text-zinc-400">Reverted</span>}
+      {batch.optimistic && <span className="text-[9px] px-1 rounded border border-dashed border-cyan-700 text-cyan-300 animate-pulse">Sending…</span>}
       {batch.commands.map(c => (
         <span key={c.id} className={clsx('text-[9px] px-1 rounded border flex items-center gap-0.5', statusStyle[c.status])} title={c.deviceMessage ?? c.status}>
           <StatusIcon status={c.status} /> {c.deviceName} {c.targetState ? 'ON' : 'OFF'} · {c.status}
@@ -46,7 +47,7 @@ const BatchRow = ({ batch }: { batch: CommandBatch }) => (
 );
 
 /** Command history with the Stack&lt;T&gt;-backed Undo of the most recent operator action. */
-export const CommandHistoryPanel = ({ commands, onUndo, undoing }: CommandHistoryPanelProps) => {
+export const CommandHistoryPanel = ({ commands, onUndo, canUndo }: CommandHistoryPanelProps) => {
   const top = commands?.undoStack.top;
   const depth = commands?.undoStack.depth ?? 0;
 
@@ -61,7 +62,7 @@ export const CommandHistoryPanel = ({ commands, onUndo, undoing }: CommandHistor
 
       <button
         onClick={onUndo}
-        disabled={depth === 0 || undoing}
+        disabled={!canUndo}
         className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-purple-950/60 hover:bg-purple-900 border border-purple-800 text-purple-200 rounded-sm disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         title="Ctrl+Z"
       >

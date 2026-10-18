@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Search, Power, PowerOff, Loader2, ShieldAlert, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { DeviceView } from '../../types/telemetry';
@@ -26,33 +25,24 @@ type DeviceControlPanelProps = {
   onCategoryChange: (c: string) => void;
   onAlertStateChange: (a: AlertStateFilter) => void;
   onSelect: (mac: string) => void;
-  onCommand: (targets: { macAddress: string; targetState: boolean }[], label?: string) => Promise<void>;
+  onCommand: (targets: { macAddress: string; targetState: boolean }[], label?: string) => void;
 };
 
 export const DeviceControlPanel = ({
   devices, history, query, category, alertState, selectedMac, highlightedMacs,
   onQueryChange, onCategoryChange, onAlertStateChange, onSelect, onCommand
 }: DeviceControlPanelProps) => {
-  const [busyMac, setBusyMac] = useState<string | null>(null);
   const filtered = devices.filter(d => matchesFilters(d, query, category, alertState));
   const openValves = devices.filter(d => d.device.category === 2 && d.reportedState === true);
 
-  const send = async (mac: string, targets: { macAddress: string; targetState: boolean }[], label?: string) => {
-    setBusyMac(mac);
-    try {
-      await onCommand(targets, label);
-    } finally {
-      setBusyMac(null);
-    }
-  };
 
   return (
     <section className="bg-zinc-900 border border-zinc-800 rounded-sm p-4 font-mono text-xs space-y-3" aria-label="Device controls">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-zinc-300 font-bold uppercase tracking-wider">Live Devices &amp; Manual Overrides</h3>
         <button
-          disabled={openValves.length === 0 || busyMac !== null}
-          onClick={() => send('*', openValves.map(v => ({ macAddress: v.device.macAddress, targetState: false })), 'Shut down all valves')}
+          disabled={openValves.length === 0}
+          onClick={() => onCommand(openValves.map(v => ({ macAddress: v.device.macAddress, targetState: false })), 'Shut down all valves')}
           className="flex items-center gap-1 px-2.5 py-1 bg-rose-950/60 hover:bg-rose-900 border border-rose-800 text-rose-200 rounded-sm disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           title="Turns every open actuator OFF as one undoable batch"
         >
@@ -103,7 +93,7 @@ export const DeviceControlPanel = ({
           const offline = !view.status.isOnline;
           const critical = view.activeAlerts.find(a => a.severity === 'Critical');
           const alert = critical ?? view.activeAlerts[0];
-          const busy = busyMac === mac || view.pendingCommands > 0;
+          const syncing = view.optimistic?.pendingState !== undefined || view.pendingCommands > 0;
 
           return (
             <div
@@ -137,17 +127,21 @@ export const DeviceControlPanel = ({
 
               {view.isControllable ? (
                 <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
-                  <span className={clsx('px-1.5 py-0.5 rounded text-[10px] font-bold border w-10 text-center',
-                    view.reportedState === true ? 'border-emerald-800 text-emerald-400 bg-emerald-950/40' : view.reportedState === false ? 'border-zinc-700 text-zinc-400' : 'border-zinc-800 text-zinc-600')}>
+                  <span
+                    className={clsx('px-1.5 py-0.5 rounded text-[10px] font-bold border w-10 text-center',
+                      view.reportedState === true ? 'border-emerald-800 text-emerald-400 bg-emerald-950/40' : view.reportedState === false ? 'border-zinc-700 text-zinc-400' : 'border-zinc-800 text-zinc-600',
+                      syncing && 'border-dashed')}
+                    title={syncing ? 'Applied locally - awaiting device acknowledgement' : 'State reported by the device'}
+                  >
                     {view.reportedState === null ? '--' : view.reportedState ? 'ON' : 'OFF'}
                   </span>
-                  {busy ? (
-                    <span className="flex items-center gap-1 text-cyan-400 text-[10px] w-[92px]"><Loader2 size={12} className="animate-spin" /> awaiting ack</span>
-                  ) : (
-                    <>
+                  <span className="w-4 flex justify-center" aria-label={syncing ? 'Syncing with device' : undefined}>
+                    {syncing && <Loader2 size={12} className="animate-spin text-cyan-400" />}
+                  </span>
+                  <>
                       <button
                         disabled={view.reportedState === true}
-                        onClick={() => send(mac, [{ macAddress: mac, targetState: true }])}
+                        onClick={() => onCommand([{ macAddress: mac, targetState: true }])}
                         className="flex items-center gap-1 px-2 py-1 rounded-sm border border-emerald-800 text-emerald-300 hover:bg-emerald-950 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                         aria-label={`Turn ${view.deviceName} on`}
                       >
@@ -155,14 +149,13 @@ export const DeviceControlPanel = ({
                       </button>
                       <button
                         disabled={view.reportedState === false}
-                        onClick={() => send(mac, [{ macAddress: mac, targetState: false }])}
+                        onClick={() => onCommand([{ macAddress: mac, targetState: false }])}
                         className="flex items-center gap-1 px-2 py-1 rounded-sm border border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                         aria-label={`Turn ${view.deviceName} off`}
                       >
                         <PowerOff size={11} /> OFF
                       </button>
-                    </>
-                  )}
+                  </>
                 </div>
               ) : (
                 <span className="text-[10px] text-zinc-600 shrink-0 w-[150px] text-right">Read-only sensor</span>

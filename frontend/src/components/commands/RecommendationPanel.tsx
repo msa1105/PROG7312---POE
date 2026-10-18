@@ -1,12 +1,11 @@
-import { useState } from 'react';
 import { Sparkles, Lightbulb, Check, X, Eye, BrainCircuit } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { ActionSuggestion, AlertSeverity, RecommendationSnapshot } from '../../types/telemetry';
 
 type RecommendationPanelProps = {
   recommendations: RecommendationSnapshot | null;
-  onAccept: (suggestion: ActionSuggestion) => Promise<void>;
-  onDismiss: (suggestion: ActionSuggestion) => Promise<void>;
+  onAccept: (suggestion: ActionSuggestion) => void;
+  onDismiss: (suggestion: ActionSuggestion) => void;
   onFocusDevice: (mac: string) => void;
 };
 
@@ -18,13 +17,6 @@ const severityStyle: Record<AlertSeverity, string> = {
 
 /** "Suggested Actions" (learned from operator history) and "Automated Insights" (rule and trend analysis). */
 export const RecommendationPanel = ({ recommendations, onAccept, onDismiss, onFocusDevice }: RecommendationPanelProps) => {
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  const act = async (id: string, action: () => Promise<void>) => {
-    setBusyId(id);
-    try { await action(); } finally { setBusyId(null); }
-  };
-
   const suggestions = recommendations?.suggestions ?? [];
   const insights = recommendations?.insights ?? [];
   const model = recommendations?.model;
@@ -51,15 +43,13 @@ export const RecommendationPanel = ({ recommendations, onAccept, onDismiss, onFo
                 <p className="text-[11px] text-zinc-400 mt-1.5 leading-relaxed">{s.reason}</p>
                 <div className="flex gap-1.5 mt-2">
                   <button
-                    disabled={busyId === s.id}
-                    onClick={() => act(s.id, () => onAccept(s))}
+                    onClick={() => onAccept(s)}
                     className="flex items-center gap-1 px-2 py-1 rounded-sm bg-cyan-600 hover:bg-cyan-500 text-zinc-950 font-bold disabled:opacity-50 cursor-pointer"
                   >
                     {s.kind === 'Command' ? <><Check size={11} /> Apply</> : <><Eye size={11} /> Inspect</>}
                   </button>
                   <button
-                    disabled={busyId === s.id}
-                    onClick={() => act(s.id, () => onDismiss(s))}
+                    onClick={() => onDismiss(s)}
                     className="flex items-center gap-1 px-2 py-1 rounded-sm border border-zinc-700 text-zinc-400 hover:text-zinc-200 disabled:opacity-50 cursor-pointer"
                   >
                     <X size={11} /> Dismiss

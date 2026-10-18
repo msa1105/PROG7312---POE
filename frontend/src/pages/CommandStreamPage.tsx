@@ -7,7 +7,7 @@ import { ALERT_FILTERS, matchesFilters, type AlertStateFilter } from '../utils/c
 import { CommandHistoryPanel } from '../components/commands/CommandHistoryPanel';
 import { RecommendationPanel } from '../components/commands/RecommendationPanel';
 import { TimelineChart } from '../components/commands/TimelineChart';
-import { api, getApiErrorMessage } from '../services/api';
+import { api } from '../services/api';
 import { useGatewayStore } from '../state/gatewayContext';
 import type { ActionSuggestion } from '../types/telemetry';
 
@@ -23,7 +23,6 @@ const CommandStreamPage = () => {
   const store = useGatewayStore();
   const [params, setParams] = useSearchParams();
   const [feedback, setFeedback] = useState<{ text: string; tone: 'ok' | 'error' } | null>(null);
-  const [undoing, setUndoing] = useState(false);
   const lastLoggedSearch = useRef<string>('');
   const location = useLocation();
   const { setCommandStreamSearch } = store;
@@ -80,25 +79,19 @@ const CommandStreamPage = () => {
     setTimeout(() => setFeedback(null), 4500);
   };
 
-  const issueCommand = async (targets: { macAddress: string; targetState: boolean }[], label?: string) => {
-    try {
-      const batch = await api.issueCommand(targets, label);
-      flash(`Queued “${batch.label}” — waiting for device acknowledgement.`);
-    } catch (err) {
-      flash(getApiErrorMessage(err, 'Command failed'), 'error');
-    }
+  // Optimistic: the UI changes immediately; the store rolls back and reports if the API rejects the action
+  const { issueCommand: issueOptimistic, undoLastCommand, acceptSuggestion, dismissSuggestion, canUndo, commands } = store;
+
+  const issueCommand = (targets: { macAddress: string; targetState: boolean }[], label?: string) => {
+    flash(`Sent ${label ? `“${label}”` : 'command'} — awaiting device acknowledgement.`);
+    void issueOptimistic(targets, label);
   };
 
-  const undo = useCallback(async () => {
-    setUndoing(true);
-    try {
-      const result = await api.undoLastCommand();
-      flash(`Reverted “${result.reverted.label}”.`);
-    } catch (err) {
-      flash(getApiErrorMessage(err, 'Nothing to undo'), 'error');
-    }
-    setUndoing(false);
-  }, []);
+  const undo = useCallback(() => {
+    const top = commands?.undoStack.top;
+    if (top) flash(`Reverting “${top.label}”…`);
+    void undoLastCommand();
+  }, [commands, undoLastCommand]);
 
   // Ctrl/Cmd+Z undoes the last command (ignored while typing in a field)
   useEffect(() => {
@@ -114,23 +107,15 @@ const CommandStreamPage = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [undo]);
 
-  const accept = async (suggestion: ActionSuggestion) => {
-    try {
-      await api.acceptSuggestion(suggestion.id);
-      if (suggestion.kind === 'Inspect') updateParam('device', suggestion.macAddress);
-      flash(suggestion.kind === 'Command' ? `Applied suggestion: ${suggestion.title}` : `Inspecting ${suggestion.deviceName}`);
-    } catch (err) {
-      flash(getApiErrorMessage(err, 'Suggestion is no longer available'), 'error');
-    }
+  const accept = (suggestion: ActionSuggestion) => {
+    if (suggestion.kind === 'Inspect') updateParam('device', suggestion.macAddress);
+    flash(suggestion.kind === 'Command' ? `Applied suggestion: ${suggestion.title}` : `Inspecting ${suggestion.deviceName}`);
+    void acceptSuggestion(suggestion);
   };
 
-  const dismiss = async (suggestion: ActionSuggestion) => {
-    try {
-      await api.dismissSuggestion(suggestion.id);
-      flash(`Dismissed “${suggestion.title}” for 10 minutes.`);
-    } catch (err) {
-      flash(getApiErrorMessage(err, 'Suggestion is no longer available'), 'error');
-    }
+  const dismiss = (suggestion: ActionSuggestion) => {
+    flash(`Dismissed “${suggestion.title}” for 10 minutes.`);
+    void dismissSuggestion(suggestion);
   };
 
   const highlighted = useMemo(
@@ -179,7 +164,7 @@ const CommandStreamPage = () => {
             onDismiss={dismiss}
             onFocusDevice={mac => updateParam('device', mac)}
           />
-          <CommandHistoryPanel commands={store.commands} onUndo={undo} undoing={undoing} />
+          <CommandHistoryPanel commands={store.commands} onUndo={undo} canUndo={canUndo} />
         </div>
       </div>
     </div>
