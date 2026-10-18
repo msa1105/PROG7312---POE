@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Calculator, Check, Cpu } from 'lucide-react';
 import { api } from '../../services/api';
-import type { PowerAggregationResult } from '../../types/telemetry';
+import type { PowerAggregationResult, TelemetrySnapshot } from '../../types/telemetry';
 
-export const OperatorOverloadBox = ({ device, telemetry }: { device: any; telemetry: any }) => {
-  if (device.category !== 1) return null; // Only show for PowerConsumption
-
+// Rendered only for PowerConsumption nodes (the parent decides), so hooks always run unconditionally
+export const OperatorOverloadBox = ({ telemetry }: { telemetry: TelemetrySnapshot | null }) => {
   const val = typeof telemetry?.value === 'number' ? telemetry.value : 400.0;
   const [referenceMeterWatts, setReferenceMeterWatts] = useState(380.20);
   const [result, setResult] = useState<PowerAggregationResult | null>(null);

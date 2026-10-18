@@ -9,23 +9,27 @@ import {
   UserCheck, 
   Zap, 
   Sparkles,
-  Filter
+  Filter,
+  Timer
 } from 'lucide-react';
 import type { IncidentIssue, OperatorEngagementStats } from '../../types/telemetry';
-import { api } from '../../services/api';
+import { api, getApiErrorMessage } from '../../services/api';
+import { formatBenchmark } from '../../utils/telemetry';
 
 type IncidentCenterProps = {
-  activeDeviceMac?: string;
-  onRefreshDevices?: () => void;
+  initialReportMac?: string;
+  openReportOnMount?: boolean;
+  knownMacs?: string[];
 };
 
-export const IncidentTriageCenter = ({ activeDeviceMac }: IncidentCenterProps) => {
+export const IncidentTriageCenter = ({ initialReportMac, openReportOnMount = false, knownMacs = [] }: IncidentCenterProps) => {
   const [issues, setIssues] = useState<IncidentIssue[]>([]);
   const [stats, setStats] = useState<OperatorEngagementStats | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'resolved'>('all');
-  const [isReportingOpen, setIsReportingOpen] = useState(false);
+  const [isReportingOpen, setIsReportingOpen] = useState(openReportOnMount);
   const [newTitle, setNewTitle] = useState('');
-  const [newMac, setNewMac] = useState(activeDeviceMac || '24:6F:28:9A:12:03');
+  const [newMac, setNewMac] = useState(initialReportMac || '24:6F:28:9A:12:03');
+  const [reportError, setReportError] = useState<string | null>(null);
   const [newDesc, setNewDesc] = useState('');
   const [newSeverity, setNewSeverity] = useState<number>(2); // High
   const [loading, setLoading] = useState(false);
@@ -53,22 +57,23 @@ export const IncidentTriageCenter = ({ activeDeviceMac }: IncidentCenterProps) =
   const handleReport = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setReportError(null);
     try {
-      await api.reportIssue({
-        macAddress: newMac,
+      const created = await api.reportIssue({
+        macAddress: newMac.trim().toUpperCase(),
         title: newTitle,
         description: newDesc,
         severity: newSeverity,
         reportedBy: 'Operator-Gateway'
       });
-      setToast({ text: `Incident logged! +${newSeverity === 3 ? 150 : 100} XP awarded to Operator profile`, type: 'success' });
+      setToast({ text: `Incident ${created.id} logged! +${created.xpAwarded} XP awarded to Operator profile`, type: 'success' });
       setTimeout(() => setToast(null), 3500);
       setNewTitle('');
       setNewDesc('');
       setIsReportingOpen(false);
       await fetchIssuesAndStats();
-    } catch (err: any) {
-      alert('Failed to report issue: ' + (err.message || 'Unknown error'));
+    } catch (err: unknown) {
+      setReportError(getApiErrorMessage(err, 'Failed to report issue.'));
     }
     setLoading(false);
   };
@@ -116,7 +121,7 @@ export const IncidentTriageCenter = ({ activeDeviceMac }: IncidentCenterProps) =
               Dynamic Engagement Strategy • Incident Triage Command
             </div>
             <div className="text-base font-bold text-zinc-100 uppercase flex items-center gap-2">
-              Rank: <span className="text-purple-400">{stats?.operatorRank || 'Telemetry Apprentice'}</span>
+              Rank: <span className="text-purple-400">{stats?.operatorRank || 'Operations Apprentice'}</span>
               <span className="text-xs bg-purple-900/40 text-purple-300 px-2 py-0.5 rounded border border-purple-800">
                 Lvl {stats?.operatorLevel || 1}
               </span>
@@ -137,6 +142,13 @@ export const IncidentTriageCenter = ({ activeDeviceMac }: IncidentCenterProps) =
             <div className="text-[10px] text-zinc-500 uppercase">Resolution Rate</div>
             <div className="text-lg font-bold text-emerald-400">
               {stats?.resolutionRatePercent || 0}%
+            </div>
+          </div>
+          <div className="h-8 w-px bg-zinc-800"></div>
+          <div className="text-center" title="Mean-Time-To-Detect (alert raised → operator acknowledgement) / Mean-Time-To-Triage (report → claimed)">
+            <div className="text-[10px] text-zinc-500 uppercase flex items-center justify-center gap-1"><Timer size={10} /> MTTD / MTTT</div>
+            <div className="text-lg font-bold text-zinc-200">
+              {formatBenchmark(stats?.meanTimeToDetectSeconds)} / {formatBenchmark(stats?.meanTimeToTriageSeconds)}
             </div>
           </div>
           <div className="h-8 w-px bg-zinc-800"></div>
@@ -314,11 +326,15 @@ export const IncidentTriageCenter = ({ activeDeviceMac }: IncidentCenterProps) =
                 <label className="block text-zinc-400 mb-1">Target Sensor MAC</label>
                 <input
                   required
+                  list="incident-known-macs"
                   value={newMac}
                   onChange={e => setNewMac(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-800 p-2 text-zinc-200 uppercase rounded"
                   placeholder="24:6F:28:9A:12:03"
                 />
+                <datalist id="incident-known-macs">
+                  {knownMacs.map(mac => <option key={mac} value={mac} />)}
+                </datalist>
               </div>
 
               <div>
@@ -357,6 +373,10 @@ export const IncidentTriageCenter = ({ activeDeviceMac }: IncidentCenterProps) =
                   placeholder="Describe observed telemetry drift, hardware state, or sub-zone anomaly..."
                 />
               </div>
+
+              {reportError && (
+                <div className="p-2 bg-rose-950/80 border border-rose-800 text-rose-300 rounded text-[11px]">{reportError}</div>
+              )}
 
               <div className="flex gap-2 pt-2">
                 <button

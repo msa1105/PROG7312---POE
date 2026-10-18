@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Server, Activity, Plus, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { getApiErrorMessage } from '../../services/api';
 
 type HeaderProps = {
   onReturnToLanding: () => void;
   onRegisterClick: () => void;
-  onBurst: () => Promise<void>;
-  onInjectSpike: () => Promise<void>;
-  onDropHeartbeat: () => Promise<void>;
-  onReset: () => Promise<void>;
+  onBurst: () => Promise<string>;
+  onInjectSpike: () => Promise<string>;
+  onDropHeartbeat: () => Promise<string>;
+  onReset: () => Promise<string>;
   onToggleTriage?: () => void;
   activeTriageCount?: number;
+  isBackendOnline?: boolean;
 };
 
 export const Header = ({ 
@@ -20,25 +22,23 @@ export const Header = ({
   onDropHeartbeat, 
   onReset,
   onToggleTriage,
-  activeTriageCount = 0
+  activeTriageCount = 0,
+  isBackendOnline = true
 }: HeaderProps) => {
   const [time, setTime] = useState(new Date().toISOString().substring(11, 19));
   const [toast, setToast] = useState<{msg: string, type: 'success' | 'error' | 'info'} | null>(null);
 
-  const handleAction = async (actionName: string, actionFn: () => Promise<void>) => {
-    try {
-      await actionFn();
-    } catch (err: any) {
-      setToast({ msg: `${actionName} Failed: ${err.message}`, type: 'error' });
-      setTimeout(() => setToast(null), 3000);
-    }
+  const showToast = (msg: string, type: 'success' | 'error' | 'info') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
   };
 
-  const executeBurst = async () => {
-    const start = Date.now();
-    await handleAction('Burst', onBurst);
-    setToast({ msg: `5,000 packets ingested in ${Date.now() - start}ms via Jagged Buffer`, type: 'success' });
-    setTimeout(() => setToast(null), 3000);
+  const handleAction = async (actionName: string, actionFn: () => Promise<string>) => {
+    try {
+      showToast(await actionFn(), 'success');
+    } catch (err: unknown) {
+      showToast(`${actionName} Failed: ${getApiErrorMessage(err, 'Request failed')}`, 'error');
+    }
   };
 
   useEffect(() => {
@@ -84,8 +84,8 @@ export const Header = ({
           )}
 
           <div className="flex items-center gap-2 text-zinc-400">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            SYSTEM STATUS: ONLINE
+            <span className={`h-2 w-2 rounded-full animate-pulse ${isBackendOnline ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+            SYSTEM STATUS: {isBackendOnline ? 'ONLINE' : <span className="text-rose-400 font-bold">GATEWAY UNREACHABLE</span>}
           </div>
           <div className="text-zinc-500 hidden sm:block">
             UTC: {time}
@@ -105,7 +105,7 @@ export const Header = ({
               {toast.msg}
             </div>
           )}
-          <button onClick={executeBurst} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-emerald-400 border border-emerald-900 rounded-sm transition-colors cursor-pointer">
+          <button onClick={() => handleAction('Burst', onBurst)} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-emerald-400 border border-emerald-900 rounded-sm transition-colors cursor-pointer">
             Burst 5,000 Pkts
           </button>
           <button onClick={() => handleAction('Spike', onInjectSpike)} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-rose-400 border border-rose-900 rounded-sm transition-colors cursor-pointer">

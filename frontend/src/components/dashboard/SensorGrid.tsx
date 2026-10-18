@@ -1,47 +1,26 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { SensorCard } from './SensorCard';
+import type { DeviceView } from '../../types/telemetry';
+
+export type SensorHistory = Record<string, { lastPacketId: string | null; values: number[] }>;
 
 type SensorGridProps = {
-  devices: any[];
-  onOpenDrawer: (data: any) => void;
+  devices: DeviceView[];
+  history: SensorHistory;
+  fetchedAt: number;
+  onOpenDrawer: (macAddress: string) => void;
+  onRefresh: () => Promise<void> | void;
+  onReportIncident: (macAddress: string) => void;
 };
 
-export const SensorGrid = ({ devices, onOpenDrawer }: SensorGridProps) => {
-  const [currentTime, setCurrentTime] = useState(new Date());
-  
-  // Track historical values for sparkline using a ref to avoid resetting on render
-  // Keyed by macAddress
-  const historyRef = useRef<Record<string, number[]>>({});
+export const SensorGrid = ({ devices, history, fetchedAt, onOpenDrawer, onRefresh, onReportIncident }: SensorGridProps) => {
+  // Ticks every second so offline duration timers keep counting between polls
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const timeInterval = setInterval(() => setCurrentTime(new Date()), 1000);
+    const timeInterval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timeInterval);
   }, []);
-
-  // Update history buffer
-  useEffect(() => {
-    devices.forEach(d => {
-      const mac = d.device.macAddress;
-      if (!historyRef.current[mac]) {
-        historyRef.current[mac] = [];
-      }
-      
-      const val = d.latestTelemetry?.value;
-      if (val !== undefined && val !== null) {
-        // Only push if it's a new timestamp, or just push every poll if we assume constant streaming
-        // For simplicity, we just push the latest value every render if it changed (or just keep a window of 30)
-        const currentHist = historyRef.current[mac];
-        // simple dedup by checking if the value changed. In a real app we'd check packetId or timestamp
-        if (currentHist.length === 0 || currentHist[currentHist.length - 1] !== val) {
-          currentHist.push(val);
-          // Keep last 30 values for sparkline
-          if (currentHist.length > 30) {
-            currentHist.shift();
-          }
-        }
-      }
-    });
-  }, [devices]);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4">
@@ -50,14 +29,17 @@ export const SensorGrid = ({ devices, onOpenDrawer }: SensorGridProps) => {
           No active sensor nodes detected. Register a node to begin ingestion.
         </div>
       )}
-      
-      {devices.map((d, i) => (
-        <SensorCard 
-          key={i} 
+
+      {devices.map((d) => (
+        <SensorCard
+          key={d.device.macAddress}
           deviceData={d}
-          history={historyRef.current[d.device.macAddress] || []}
-          currentTime={currentTime}
+          history={history[d.device.macAddress]?.values ?? []}
+          fetchedAt={fetchedAt}
+          now={now}
           onOpenDrawer={onOpenDrawer}
+          onRefresh={onRefresh}
+          onReportIncident={onReportIncident}
         />
       ))}
     </div>

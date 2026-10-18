@@ -3,7 +3,7 @@ import { Layers, Database } from 'lucide-react';
 import { api } from '../../services/api';
 import type { JaggedBufferStatus } from '../../types/telemetry';
 
-export const JaggedBufferView = ({ telemetry: _telemetry }: { telemetry?: any }) => {
+export const JaggedBufferView = () => {
   const [bufferStatus, setBufferStatus] = useState<JaggedBufferStatus | null>(null);
 
   const fetchBufferStatus = async () => {
@@ -29,7 +29,7 @@ export const JaggedBufferView = ({ telemetry: _telemetry }: { telemetry?: any })
           Advanced Jagged Array Buffer (double[4][])
         </h3>
         <span className="text-[10px] text-zinc-500 font-mono">
-          {bufferStatus?.totalBufferedReadings || 1000} buffered readings
+          {bufferStatus ? bufferStatus.totalBufferedReadings : '--'} buffered readings
         </span>
       </div>
 
@@ -69,7 +69,11 @@ export const JaggedBufferView = ({ telemetry: _telemetry }: { telemetry?: any })
             </div>
             <div className="flex items-center gap-3">
               <span className="text-cyan-400 font-bold">
-                {bufferStatus.customCollectionMetrics.totalIngested} total
+                {bufferStatus.customCollectionMetrics.totalIngested.toLocaleString()} total
+              </span>
+              <span className="text-zinc-500">|</span>
+              <span className="text-zinc-400">
+                Retained: {bufferStatus.customCollectionMetrics.currentCount.toLocaleString()}
               </span>
               <span className="text-zinc-500">|</span>
               <span className="text-zinc-400">
