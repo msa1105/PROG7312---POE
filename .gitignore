@@ -3,5 +3,7 @@ obj/
 node_modules/
 dist/
 .vs/
-Uploads/*
-!Uploads/.gitkeep
+
+# Runtime data: encrypted attachment blobs and the generated gateway master key
+**/Uploads/
+**/keys/
