@@ -16,7 +16,8 @@ public record TelemetrySnapshot(
     double? RollingMean,
     double? RollingStdDev,
     int? SignalStrengthDbm,
-    double? BatteryPercent
+    double? BatteryPercent,
+    bool? RelayOn = null
 );
 
 /// <summary>

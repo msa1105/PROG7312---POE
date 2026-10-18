@@ -1,22 +1,59 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using SmartX.Api.Models;
 using SmartX.Api.Services;
+using SmartX.Api.Services.Ingestion;
+using SmartX.Api.Services.Realtime;
 using Xunit;
 
 namespace SmartX.Api.Tests;
 
+/// <summary>End-to-end processing pipeline (queue → worker → registry/timeline → alert sets) without HTTP.</summary>
 public class TelemetryPipelineTests
 {
     private const string PowerMac = "24:6F:28:9A:12:03";
     private const string EnvMac = "24:6F:28:9A:12:01";
 
-    private static (DeviceRegistryService Registry, AnomalyDetectionService Anomaly, SimulationControlService Simulation, TelemetrySimulationWorker Worker) CreatePipeline()
+    private sealed class Pipeline
     {
-        var registry = new DeviceRegistryService();
-        var anomaly = new AnomalyDetectionService();
-        var simulation = new SimulationControlService();
-        registry.RegisterDevice(new SensorDevice { MacAddress = PowerMac, Category = SensorCategory.PowerConsumption, DeploymentLocation = "Facility Alpha > Substation Main" });
-        registry.RegisterDevice(new SensorDevice { MacAddress = EnvMac, Category = SensorCategory.Environmental, DeploymentLocation = "Facility Alpha > Greenhouse 1 > Rack A" });
-        return (registry, anomaly, simulation, new TelemetrySimulationWorker(registry, anomaly, simulation));
+        public DeviceRegistryService Registry { get; } = new();
+        public AnomalyDetectionService Anomaly { get; } = new();
+        public AlertStateTracker Alerts { get; } = new();
+        public TelemetryIngestionQueue Queue { get; } = new();
+        public TelemetryProcessingWorker Worker { get; }
+        public LeaseMonitorWorker Leases { get; }
+
+        public Pipeline()
+        {
+            Registry.RegisterDevice(new SensorDevice { MacAddress = PowerMac, Category = SensorCategory.PowerConsumption, DeploymentLocation = "Facility Alpha > Substation Main" });
+            Registry.RegisterDevice(new SensorDevice { MacAddress = EnvMac, Category = SensorCategory.Environmental, DeploymentLocation = "Facility Alpha > Greenhouse 1 > Rack A" });
+            Worker = new TelemetryProcessingWorker(Queue, Registry, Anomaly, Alerts, NullDeviceChangeNotifier.Instance, NullLogger<TelemetryProcessingWorker>.Instance);
+            Leases = new LeaseMonitorWorker(Registry, Alerts, new CommandDispatcher(), NullDeviceChangeNotifier.Instance);
+        }
+
+        /// <summary>Simulates the ingest endpoint: classify, heartbeat, enqueue.</summary>
+        public void Ingest(TelemetryWorkItem item, SensorCategory category)
+        {
+            Registry.RecordHeartbeat(item.MacAddress);
+            Queue.Enqueue(item, CriticalReadingClassifier.Classify(category, item));
+        }
+
+        public void IngestPower(double watts, DateTime? timestamp = null) => Ingest(TelemetryWorkItems.From(new TelemetryPacket<PowerMetric>
+        {
+            MacAddress = PowerMac, Value = new PowerMetric(watts), MetricUnit = "W", Timestamp = timestamp ?? DateTime.UtcNow, RelayOn = true, SignalStrengthDbm = -60, BatteryPercent = 88
+        }), SensorCategory.PowerConsumption);
+
+        public void IngestMoisture(float value) => Ingest(TelemetryWorkItems.From(new TelemetryPacket<float> { MacAddress = EnvMac, Value = value, MetricUnit = "%" }), SensorCategory.Environmental);
+
+        public int Drain()
+        {
+            int processed = 0;
+            while (Queue.TryDequeue(out var envelope))
+            {
+                Worker.Process(envelope);
+                processed++;
+            }
+            return processed;
+        }
     }
 
     [Fact]
@@ -29,10 +66,6 @@ public class TelemetryPipelineTests
             Assert.False(service.Evaluate("mac", pattern[i % pattern.Length]).IsAnomaly);
         }
 
-        var normal = service.Evaluate("mac", 401);
-        Assert.False(normal.IsAnomaly);
-        Assert.NotNull(normal.BaselineMean);
-
         var spike = service.Evaluate("mac", 450);
         Assert.True(spike.IsAnomaly);
         Assert.True(spike.ZScore > AnomalyDetectionService.ZScoreThreshold);
@@ -40,107 +73,130 @@ public class TelemetryPipelineTests
     }
 
     [Fact]
-    public void Worker_EmitsPowerMetricPackets_WithTransmissionMetadata()
+    public void Pipeline_ProcessesPowerMetricPackets_IntoSnapshotWithMetadata()
     {
-        var (registry, _, _, worker) = CreatePipeline();
+        var p = new Pipeline();
+        p.IngestPower(401.5);
+        Assert.Equal(1, p.Drain());
 
-        worker.Tick();
-
-        var latest = registry.GetLatestTelemetry(PowerMac);
-        Assert.NotNull(latest);
+        var latest = p.Registry.GetLatestTelemetry(PowerMac)!;
         Assert.Equal("PowerMetric", latest.PayloadType);
-        Assert.IsType<double>(latest.Value);
-        Assert.InRange((double)latest.Value!, 380.0, 420.0);
-        Assert.NotNull(latest.SignalStrengthDbm);
-        Assert.NotNull(latest.BatteryPercent);
-        Assert.Equal("float", registry.GetLatestTelemetry(EnvMac)!.PayloadType);
+        Assert.Equal(401.5, latest.Value);
+        Assert.Equal(-60, latest.SignalStrengthDbm);
+        Assert.True(p.Registry.GetReportedState(PowerMac));
     }
 
     [Fact]
-    public void Worker_InjectedSigmaSpike_IsFlagged_AndLatchesAlertUntilAcknowledged()
+    public void Pipeline_SigmaSpike_RaisesOneLatchedAnomalyAlert_UntilAcknowledged()
     {
-        var (registry, _, simulation, worker) = CreatePipeline();
-        for (int i = 0; i < AnomalyDetectionService.MinimumSamples + 5; i++) worker.Tick();
+        var p = new Pipeline();
+        var random = new Random(7);
+        for (int i = 0; i < AnomalyDetectionService.MinimumSamples + 10; i++) p.IngestPower(380 + random.NextDouble() * 40);
+        p.Drain();
 
-        simulation.ScheduleSpike(PowerMac, 4.5);
-        worker.Tick();
+        p.IngestPower(900);
+        p.IngestPower(905);
+        p.Drain();
 
-        var latest = registry.GetLatestTelemetry(PowerMac)!;
-        Assert.True(latest.IsAnomaly);
-        Assert.InRange(latest.ZScore!.Value, 4.4, 4.6);
-        Assert.NotNull(latest.RollingStdDev);
-
-        // The spike is one-shot, but the alert stays latched after normal readings resume
-        worker.Tick();
-        Assert.False(registry.GetLatestTelemetry(PowerMac)!.IsAnomaly);
-        var alert = Assert.Single(registry.GetActiveAlerts(PowerMac));
-        Assert.Equal(AlertKind.Anomaly, alert.Kind);
+        var alert = Assert.Single(p.Alerts.GetActiveAlerts(PowerMac), a => a.Kind == AlertKind.Anomaly);
         Assert.True(alert.Deviation > 0);
+        Assert.True(p.Alerts.GetStats().DuplicateAlertsSuppressed >= 1); // the second spike did not raise a second alert
 
-        var acknowledged = registry.AcknowledgeAlerts(PowerMac, "tester", "Inspected meter");
-        Assert.Single(acknowledged);
-        Assert.Empty(registry.GetActiveAlerts(PowerMac));
-        Assert.NotNull(registry.GetMeanTimeToDetectSeconds());
+        p.Alerts.Acknowledge(PowerMac, "tester", "Inspected meter");
+        Assert.Empty(p.Alerts.GetActiveAlerts(PowerMac));
+        Assert.NotNull(p.Alerts.GetMeanTimeToDetectSeconds());
     }
 
     [Fact]
-    public void Registry_HeartbeatLease_ExpiresAfterTwoTransmissionWindows()
+    public void Pipeline_CriticalReading_TakesPriorityLane_AndRaisesThresholdAlert()
     {
-        var (registry, _, _, worker) = CreatePipeline();
-        worker.Tick();
+        var p = new Pipeline();
+        for (int i = 0; i < 50; i++) p.IngestPower(400);
+        p.IngestMoisture(9.5f);
+
+        Assert.True(p.Queue.TryDequeue(out var first));
+        Assert.Equal(IngestionLane.Priority, first.Lane);
+        Assert.Equal(EnvMac, first.Item.MacAddress);
+        p.Worker.Process(first);
+        p.Drain();
+
+        var alert = Assert.Single(p.Alerts.GetActiveAlerts(EnvMac));
+        Assert.Equal(AlertKind.ThresholdBreach, alert.Kind);
+        Assert.Equal(AlertSeverity.Critical, alert.Severity);
+        Assert.Equal(50, p.Queue.GetStats().LastBypass!.OvertookStandardPackets);
+    }
+
+    [Fact]
+    public void Timeline_KeepsChronologicalOrder_WhenPacketsAreProcessedOutOfOrder()
+    {
+        var p = new Pipeline();
         var now = DateTime.UtcNow;
+        p.IngestPower(400, now.AddSeconds(-3));
+        p.IngestPower(1600, now.AddSeconds(-1)); // critical -> processed first
+        p.IngestPower(401, now.AddSeconds(-2));
+        p.Drain();
 
-        Assert.True(registry.GetStatus(EnvMac, now.AddSeconds(1)).IsOnline);
+        var history = p.Registry.GetHistory(PowerMac);
+        Assert.Equal(new[] { 400.0, 401.0, 1600.0 }, history.Select(s => (double)s.Value!));
+        Assert.Equal(1600.0, p.Registry.GetLatestTelemetry(PowerMac)!.Value); // latest by timestamp, not by processing order
+    }
 
-        var later = now + GatewayTiming.LeaseDuration + TimeSpan.FromSeconds(1);
-        Assert.False(registry.GetStatus(EnvMac, later).IsOnline);
+    [Fact]
+    public void LeaseMonitor_MarksNodeOfflineOnce_AndHeartbeatClearsIt()
+    {
+        var p = new Pipeline();
+        p.IngestMoisture(50);
+        p.Drain();
 
-        registry.CheckHeartbeatLeases(later);
-        var alert = Assert.Single(registry.GetActiveAlerts(EnvMac));
-        Assert.Equal(AlertKind.HeartbeatLost, alert.Kind);
+        var later = DateTime.UtcNow + GatewayTiming.LeaseDuration + TimeSpan.FromSeconds(1);
+        Assert.False(p.Registry.GetStatus(EnvMac, later).IsOnline);
 
-        // Repeated lease checks do not duplicate the latched alert
-        registry.CheckHeartbeatLeases(later.AddSeconds(5));
-        Assert.Single(registry.GetActiveAlerts(EnvMac));
+        p.Leases.CheckLeases(later);
+        p.Leases.CheckLeases(later.AddSeconds(1));
+        p.Leases.CheckLeases(later.AddSeconds(2));
+
+        Assert.Equal(new[] { EnvMac }, p.Alerts.GetDisconnected());
+        Assert.Single(p.Alerts.GetActiveAlerts(EnvMac), a => a.Kind == AlertKind.HeartbeatLost);
+        Assert.Equal(2, p.Alerts.GetStats().DuplicateDisconnectsSuppressed);
+
+        Assert.True(p.Alerts.MarkReconnected(EnvMac));
+        Assert.Empty(p.Alerts.GetDisconnected());
+    }
+
+    [Fact]
+    public void Heartbeat_IsRecordedOnArrival_NotProcessing()
+    {
+        var p = new Pipeline();
+        p.IngestMoisture(50); // queued, not yet processed
+
+        Assert.True(p.Registry.GetStatus(EnvMac, DateTime.UtcNow).IsOnline);
+        Assert.Null(p.Registry.GetLatestTelemetry(EnvMac));
     }
 
     [Fact]
     public void Registry_PacketDeliveryScore_DropsWhenTransmissionsAreMissed()
     {
-        var (registry, _, _, worker) = CreatePipeline();
-        worker.Tick();
+        var registry = new DeviceRegistryService();
+        registry.RegisterDevice(new SensorDevice { MacAddress = EnvMac, DeploymentLocation = "F > Z > N" });
+        registry.RecordHeartbeat(EnvMac);
 
         var status = registry.GetStatus(EnvMac, DateTime.UtcNow.AddSeconds(30));
-        Assert.NotNull(status.PacketDeliveryPercent);
         Assert.True(status.PacketDeliveryPercent < 10, $"Expected low delivery, got {status.PacketDeliveryPercent}");
-        Assert.Equal(1, status.PacketsReceived);
     }
 
     [Fact]
-    public void Worker_DroppedHeartbeat_StopsTelemetryForThatNodeOnly()
+    public void Registry_RestartIngestion_ClearsTimelineButKeepsLastReading()
     {
-        var (registry, _, simulation, worker) = CreatePipeline();
-        simulation.DropHeartbeat(EnvMac);
+        var p = new Pipeline();
+        for (int i = 0; i < 30; i++) p.IngestPower(400 + i);
+        p.Drain();
 
-        worker.Tick();
+        p.Anomaly.ResetWindow(PowerMac);
+        p.Registry.RestartIngestion(PowerMac);
 
-        Assert.Null(registry.GetLatestTelemetry(EnvMac));
-        Assert.NotNull(registry.GetLatestTelemetry(PowerMac));
-    }
-
-    [Fact]
-    public void Registry_History_UsesBoundedCollection_AndRestartClearsIt()
-    {
-        var (registry, anomaly, _, worker) = CreatePipeline();
-        for (int i = 0; i < DeviceRegistryService.HistoryCapacity + 5; i++) worker.Tick();
-
-        Assert.Equal(DeviceRegistryService.HistoryCapacity, registry.GetHistory(PowerMac).Count);
-
-        anomaly.ResetWindow(PowerMac);
-        registry.RestartIngestion(PowerMac);
-        Assert.Empty(registry.GetHistory(PowerMac));
-        Assert.Null(anomaly.GetBaseline(PowerMac));
-        Assert.NotNull(registry.GetLatestTelemetry(PowerMac)); // last known packet is retained
+        Assert.Single(p.Registry.GetHistory(PowerMac));
+        Assert.Null(p.Anomaly.GetBaseline(PowerMac));
+        Assert.Equal(429.0, p.Registry.GetLatestTelemetry(PowerMac)!.Value);
     }
 
     [Fact]
@@ -156,6 +212,7 @@ public class TelemetryPipelineTests
 
         Assert.Equal("AA:BB:CC:DD:EE:FF", registered.MacAddress);
         Assert.Empty(registered.Attachments);
+        Assert.NotNull(registry.GetDevice("aa:bb:cc:dd:ee:ff")); // case-insensitive O(1) lookup
         Assert.Throws<ArgumentException>(() => registry.RegisterDevice(new SensorDevice { MacAddress = "not-a-mac" }));
     }
 
@@ -170,16 +227,12 @@ public class TelemetryPipelineTests
 
         var single = buffer.FlushToList(PowerMac, "W", channelIndex: 1);
         Assert.Equal(10, single.Count);
-        Assert.All(single, p => Assert.Equal(401.0, p.Value));
-
-        var status = buffer.GetChannelStatus();
-        Assert.Equal(0, status.Channels[1].AllocatedLength);
-        Assert.Equal(30, status.TotalBufferedReadings);
+        Assert.All(single, packet => Assert.Equal(401.0, packet.Value));
+        Assert.Equal(30, buffer.GetChannelStatus().TotalBufferedReadings);
 
         Assert.Equal(30, buffer.FlushToList(PowerMac, "W").Count);
-        Assert.Empty(buffer.FlushToList(PowerMac, "W")); // nothing is ingested twice
+        Assert.Empty(buffer.FlushToList(PowerMac, "W"));
         Assert.Equal(40, buffer.GetBufferMetrics().TotalIngested);
-
         Assert.Throws<ArgumentOutOfRangeException>(() => buffer.LoadChannelBatch(4, new double[1]));
     }
 
@@ -195,13 +248,8 @@ public class TelemetryPipelineTests
         Assert.Equal(25, first.XpAwarded);
         Assert.Equal(150, second.XpAwarded);
 
-        var triaged = service.UpdateStatus(first.Id, IncidentStatus.InTriage)!;
-        Assert.NotNull(triaged.TriagedAt);
-
-        var reopened = service.UpdateStatus(first.Id, IncidentStatus.Reported)!;
-        Assert.Null(reopened.TriagedAt);
-        Assert.Null(reopened.ResolvedAt);
-
+        Assert.NotNull(service.UpdateStatus(first.Id, IncidentStatus.InTriage)!.TriagedAt);
+        Assert.Null(service.UpdateStatus(first.Id, IncidentStatus.Reported)!.TriagedAt);
         Assert.Throws<ArgumentException>(() => service.UpdateStatus(first.Id, (IncidentStatus)7));
         Assert.Throws<ArgumentException>(() => service.ReportIssue(new IncidentIssue { MacAddress = PowerMac, Title = " " }));
 

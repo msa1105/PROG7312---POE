@@ -1,32 +1,31 @@
 namespace SmartX.Api.Services;
 
 using SmartX.Api.Models;
-using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
+/// <summary>
+/// Live device registry. Devices are held in a Dictionary&lt;string, DeviceRecord&gt; keyed by the normalised
+/// (upper-case, colon-separated) MAC address, so every incoming packet resolves its device in O(1).
+/// Each record owns a SortedDictionary-backed <see cref="TelemetryTimeline"/> of its historical readings.
+/// Reference: Dictionary<TKey,TValue> Class (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.dictionary-2
+/// Reference: StringComparer.OrdinalIgnoreCase (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.stringcomparer.ordinalignorecase
+/// </summary>
 public partial class DeviceRegistryService
 {
-    public const int HistoryCapacity = 60;
+    public const int TimelineCapacity = 3600; // ~90 minutes at one reading per 1.5 s transmission window (bulk backlogs included)
 
-    private readonly ConcurrentDictionary<string, SensorDevice> _devices = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, DeviceRuntimeState> _runtime = new(StringComparer.OrdinalIgnoreCase);
-
-    // Every alert ever raised (since last reset); used for Mean-Time-To-Detect benchmarking
-    private readonly List<DeviceAlert> _alertLog = new();
-    private readonly object _alertLock = new();
-
+    private readonly Dictionary<string, DeviceRecord> _devices = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _lock = new();
     private long _totalPacketsReceived;
 
-    private sealed class DeviceRuntimeState
+    private sealed class DeviceRecord
     {
-        public readonly object Lock = new();
-        public TelemetrySnapshot? Latest;
-        public BoundedTelemetryCollection<TelemetrySnapshot> History = new(HistoryCapacity);
+        public required SensorDevice Device { get; init; }
+        public TelemetryTimeline Timeline { get; set; } = new(TimelineCapacity);
         public readonly Queue<DateTime> RecentArrivals = new();
         public DateTime? FirstReceivedAt;
         public DateTime? LastReceivedAt;
         public long PacketsReceived;
-        public readonly Dictionary<AlertKind, DeviceAlert> ActiveAlerts = new();
     }
 
     [GeneratedRegex("^([0-9A-F]{2}:){5}[0-9A-F]{2}$")]
@@ -45,20 +44,20 @@ public partial class DeviceRegistryService
         if (!TryNormalizeMac(device.MacAddress, out var mac))
             throw new ArgumentException("MAC address must use XX:XX:XX:XX:XX:XX hex notation.", nameof(device));
 
-        var incoming = new SensorDevice
+        lock (_lock)
         {
-            MacAddress = mac,
-            DeploymentLocation = device.DeploymentLocation.Trim(),
-            Category = device.Category
-            // Attachments are server-managed and never accepted from the client payload
-        };
+            if (_devices.TryGetValue(mac, out var existing))
+            {
+                existing.Device.DeploymentLocation = device.DeploymentLocation.Trim();
+                existing.Device.Category = device.Category;
+                return existing.Device;
+            }
 
-        return _devices.AddOrUpdate(mac, incoming, (key, existing) =>
-        {
-            existing.DeploymentLocation = incoming.DeploymentLocation;
-            existing.Category = incoming.Category;
-            return existing;
-        });
+            // Attachments are server-managed and never accepted from the client payload
+            var created = new SensorDevice { MacAddress = mac, DeploymentLocation = device.DeploymentLocation.Trim(), Category = device.Category };
+            _devices[mac] = new DeviceRecord { Device = created };
+            return created;
+        }
     }
 
     /// <summary>
@@ -67,8 +66,7 @@ public partial class DeviceRegistryService
     /// </summary>
     public DeviceAttachment? AddAttachment(string macAddress, DeviceAttachment attachment)
     {
-        if (!_devices.TryGetValue(macAddress, out var device))
-            throw new KeyNotFoundException($"Device '{macAddress}' is not registered.");
+        var device = GetDevice(macAddress) ?? throw new KeyNotFoundException($"Device '{macAddress}' is not registered.");
 
         lock (device.Attachments)
         {
@@ -81,27 +79,52 @@ public partial class DeviceRegistryService
 
     public DeviceAttachment? GetAttachment(string macAddress, string fileName)
     {
-        if (!_devices.TryGetValue(macAddress, out var device)) return null;
+        var device = GetDevice(macAddress);
+        if (device == null) return null;
         lock (device.Attachments)
         {
             return device.Attachments.FirstOrDefault(a => a.FileName.Equals(fileName, StringComparison.OrdinalIgnoreCase));
         }
     }
 
+    /// <summary>O(1) device lookup by MAC address.</summary>
     public SensorDevice? GetDevice(string macAddress)
     {
-        _devices.TryGetValue(macAddress, out var device);
-        return device;
+        lock (_lock) return _devices.TryGetValue(macAddress, out var record) ? record.Device : null;
     }
 
-    public IEnumerable<SensorDevice> GetAllDevices()
+    public bool Contains(string macAddress)
     {
-        return _devices.Values.OrderBy(d => d.MacAddress, StringComparer.Ordinal);
+        lock (_lock) return _devices.ContainsKey(macAddress);
+    }
+
+    public List<SensorDevice> GetAllDevices()
+    {
+        lock (_lock) return _devices.Values.Select(r => r.Device).OrderBy(d => d.MacAddress, StringComparer.Ordinal).ToList();
     }
 
     /// <summary>
-    /// Records an ingested packet: stores the latest snapshot and history, updates delivery
-    /// counters, and latches an anomaly alert when the evaluation flags an outlier.
+    /// Records that a device contacted the gateway (called at the API boundary, before queuing), so the heartbeat
+    /// lease reflects when the device transmitted - not how long its packet waited in the processing queue.
+    /// Returns false when the device is not registered.
+    /// </summary>
+    public bool RecordHeartbeat(string macAddress, DateTime? nowUtc = null)
+    {
+        var now = nowUtc ?? DateTime.UtcNow;
+        lock (_lock)
+        {
+            if (!_devices.TryGetValue(macAddress, out var record)) return false;
+            record.FirstReceivedAt ??= now;
+            record.LastReceivedAt = now;
+            record.RecentArrivals.Enqueue(now);
+            PruneArrivals(record, now);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Records a processed packet: appends it to the device timeline (in timestamp order) and counts it.
+    /// Throws when the device is not registered.
     /// </summary>
     public TelemetrySnapshot RecordTelemetry<T>(TelemetryPacket<T> packet, AnomalyEvaluation? evaluation = null)
     {
@@ -118,212 +141,146 @@ public partial class DeviceRegistryService
             RollingMean: evaluation?.BaselineMean is double m ? Math.Round(m, 2) : null,
             RollingStdDev: evaluation?.BaselineStdDev is double s ? Math.Round(s, 2) : null,
             SignalStrengthDbm: packet.SignalStrengthDbm,
-            BatteryPercent: packet.BatteryPercent
+            BatteryPercent: packet.BatteryPercent,
+            RelayOn: packet.RelayOn
         );
 
-        var state = _runtime.GetOrAdd(packet.MacAddress, _ => new DeviceRuntimeState());
-        lock (state.Lock)
+        lock (_lock)
         {
-            state.Latest = snapshot;
-            state.History.Add(snapshot);
-            state.FirstReceivedAt ??= now;
-            state.LastReceivedAt = now;
-            state.PacketsReceived++;
-            state.RecentArrivals.Enqueue(now);
-            PruneArrivals(state, now);
+            if (!_devices.TryGetValue(packet.MacAddress, out var record))
+                throw new KeyNotFoundException($"Device '{packet.MacAddress}' is not registered.");
 
-            if (evaluation?.IsAnomaly == true && !state.ActiveAlerts.ContainsKey(AlertKind.Anomaly))
-            {
-                var value = snapshot.Value is double d ? d : (double?)null;
-                RaiseAlert(state, new DeviceAlert
-                {
-                    MacAddress = packet.MacAddress,
-                    Kind = AlertKind.Anomaly,
-                    RaisedAt = now,
-                    TriggerValue = value,
-                    BaselineMean = evaluation.BaselineMean,
-                    ZScore = evaluation.ZScore,
-                    Message = $"Outlier |Z| = {Math.Abs(evaluation.ZScore ?? 0):F2} exceeds {AnomalyDetectionService.ZScoreThreshold:F1}σ threshold"
-                });
-            }
+            record.Timeline.Add(snapshot);
+            record.PacketsReceived++;
         }
 
         Interlocked.Increment(ref _totalPacketsReceived);
         return snapshot;
     }
 
-    /// <summary>
-    /// Raises a latched HeartbeatLost alert for every node whose lease (two transmission windows) has expired.
-    /// </summary>
-    public void CheckHeartbeatLeases(DateTime nowUtc)
-    {
-        foreach (var (mac, state) in _runtime)
-        {
-            lock (state.Lock)
-            {
-                if (state.LastReceivedAt is not DateTime last) continue;
-                if (nowUtc - last <= GatewayTiming.LeaseDuration) continue;
-                if (state.ActiveAlerts.ContainsKey(AlertKind.HeartbeatLost)) continue;
-
-                RaiseAlert(state, new DeviceAlert
-                {
-                    MacAddress = mac,
-                    Kind = AlertKind.HeartbeatLost,
-                    RaisedAt = nowUtc,
-                    Message = $"No telemetry within {GatewayTiming.LeaseWindows} transmission windows ({GatewayTiming.LeaseDuration.TotalSeconds:F1}s lease)"
-                });
-            }
-        }
-    }
-
+    /// <summary>The chronologically latest reading (by device timestamp).</summary>
     public TelemetrySnapshot? GetLatestTelemetry(string macAddress)
     {
-        if (!_runtime.TryGetValue(macAddress, out var state)) return null;
-        lock (state.Lock) return state.Latest;
+        lock (_lock) return _devices.TryGetValue(macAddress, out var record) ? record.Timeline.Latest : null;
     }
 
-    public List<TelemetrySnapshot> GetHistory(string macAddress)
+    /// <summary>Most recent readings in chronological order (preceding readings for the diagnostic drawer).</summary>
+    public List<TelemetrySnapshot> GetHistory(string macAddress, int count = 60)
     {
-        if (!_runtime.TryGetValue(macAddress, out var state)) return new();
-        BoundedTelemetryCollection<TelemetrySnapshot> history;
-        lock (state.Lock) history = state.History;
-        return history.ToList();
+        lock (_lock) return _devices.TryGetValue(macAddress, out var record) ? record.Timeline.TakeLast(count) : new();
+    }
+
+    /// <summary>Time-windowed, downsampled timeline for graphs.</summary>
+    public List<TimelinePoint> GetTimeline(string macAddress, DateTime fromUtc, DateTime toUtc, int maxPoints)
+    {
+        lock (_lock) return _devices.TryGetValue(macAddress, out var record) ? record.Timeline.Range(fromUtc, toUtc, maxPoints) : new();
+    }
+
+    /// <summary>
+    /// Last state reported by an actuator (its boolean value) or a smart-plug relay; null when unknown.
+    /// </summary>
+    public bool? GetReportedState(string macAddress)
+    {
+        var latest = GetLatestTelemetry(macAddress);
+        return latest?.Value is bool state ? state : latest?.RelayOn;
     }
 
     public DeviceConnectionStatus GetStatus(string macAddress, DateTime nowUtc)
     {
-        if (!_runtime.TryGetValue(macAddress, out var state))
-            return new DeviceConnectionStatus(false, null, GatewayTiming.LeaseDuration.TotalSeconds, 0, null);
-
-        lock (state.Lock)
+        lock (_lock)
         {
-            PruneArrivals(state, nowUtc);
-            double? sinceLast = state.LastReceivedAt is DateTime last ? Math.Max(0, (nowUtc - last).TotalSeconds) : null;
+            if (!_devices.TryGetValue(macAddress, out var record))
+                return new DeviceConnectionStatus(false, null, GatewayTiming.LeaseDuration.TotalSeconds, 0, null);
+
+            PruneArrivals(record, nowUtc);
+            double? sinceLast = record.LastReceivedAt is DateTime last ? Math.Max(0, (nowUtc - last).TotalSeconds) : null;
             bool isOnline = sinceLast.HasValue && sinceLast.Value <= GatewayTiming.LeaseDuration.TotalSeconds;
 
             return new DeviceConnectionStatus(
                 IsOnline: isOnline,
                 SecondsSinceLastPacket: sinceLast.HasValue ? Math.Round(sinceLast.Value, 1) : null,
                 LeaseSeconds: GatewayTiming.LeaseDuration.TotalSeconds,
-                PacketsReceived: state.PacketsReceived,
-                PacketDeliveryPercent: ComputeDeliveryPercent(state, nowUtc)
+                PacketsReceived: record.PacketsReceived,
+                PacketDeliveryPercent: ComputeDeliveryPercent(record, nowUtc)
             );
         }
     }
 
-    public List<DeviceAlert> GetActiveAlerts(string macAddress)
+    /// <summary>MACs of devices that have reported at least once but whose heartbeat lease has expired.</summary>
+    public List<string> GetExpiredLeases(DateTime nowUtc)
     {
-        if (!_runtime.TryGetValue(macAddress, out var state)) return new();
-        lock (state.Lock) return state.ActiveAlerts.Values.OrderByDescending(a => a.RaisedAt).ToList();
-    }
-
-    public int CountActiveAlerts()
-    {
-        int total = 0;
-        foreach (var state in _runtime.Values)
+        lock (_lock)
         {
-            lock (state.Lock) total += state.ActiveAlerts.Count;
-        }
-        return total;
-    }
-
-    /// <summary>
-    /// Operator acknowledgement (HITL triage) of every active alert on a node.
-    /// </summary>
-    public List<DeviceAlert> AcknowledgeAlerts(string macAddress, string acknowledgedBy, string? notes)
-    {
-        if (!_runtime.TryGetValue(macAddress, out var state)) return new();
-
-        var now = DateTime.UtcNow;
-        lock (state.Lock)
-        {
-            var acknowledged = state.ActiveAlerts.Values.ToList();
-            foreach (var alert in acknowledged)
-            {
-                alert.AcknowledgedAt = now;
-                alert.AcknowledgedBy = acknowledgedBy;
-                alert.Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
-            }
-            state.ActiveAlerts.Clear();
-            return acknowledged;
-        }
-    }
-
-    /// <summary>
-    /// Mean-Time-To-Detect: mean delay between the gateway raising an alert and an operator acknowledging it.
-    /// </summary>
-    public double? GetMeanTimeToDetectSeconds()
-    {
-        lock (_alertLock)
-        {
-            var samples = _alertLog
-                .Where(a => a.AcknowledgedAt.HasValue)
-                .Select(a => (a.AcknowledgedAt!.Value - a.RaisedAt).TotalSeconds)
+            return _devices.Values
+                .Where(r => r.LastReceivedAt is DateTime last && nowUtc - last > GatewayTiming.LeaseDuration)
+                .Select(r => r.Device.MacAddress)
                 .ToList();
-            return samples.Count == 0 ? null : Math.Round(samples.Average(), 1);
         }
     }
 
-    /// <summary>
-    /// Restarts a node's ingestion buffer: clears its reading history and delivery counters.
-    /// </summary>
+    /// <summary>Restarts a node's ingestion buffer: clears its reading history and delivery counters.</summary>
     public void RestartIngestion(string macAddress)
     {
-        if (!_runtime.TryGetValue(macAddress, out var state)) return;
-        lock (state.Lock)
+        lock (_lock)
         {
-            state.History = new BoundedTelemetryCollection<TelemetrySnapshot>(HistoryCapacity);
-            state.RecentArrivals.Clear();
-            state.PacketsReceived = 0;
-            state.FirstReceivedAt = null;
+            if (!_devices.TryGetValue(macAddress, out var record)) return;
+
+            // Keep only the last known reading so the dashboard still shows the node's state
+            var latest = record.Timeline.Latest;
+            record.Timeline = new TelemetryTimeline(TimelineCapacity);
+            if (latest != null) record.Timeline.Add(latest);
+            record.RecentArrivals.Clear();
+            record.PacketsReceived = 0;
+            record.FirstReceivedAt = null;
         }
     }
 
-    /// <summary>
-    /// Clears all runtime telemetry state (latest packets, history, counters and alerts).
-    /// </summary>
+    /// <summary>Clears all runtime telemetry state (timelines and counters), keeping registered devices.</summary>
     public void ResetRuntimeState()
     {
-        _runtime.Clear();
-        lock (_alertLock) _alertLog.Clear();
+        lock (_lock)
+        {
+            foreach (var record in _devices.Values)
+            {
+                record.Timeline = new TelemetryTimeline(TimelineCapacity);
+                record.RecentArrivals.Clear();
+                record.FirstReceivedAt = null;
+                record.LastReceivedAt = null;
+                record.PacketsReceived = 0;
+            }
+        }
         Interlocked.Exchange(ref _totalPacketsReceived, 0);
     }
 
-    private void RaiseAlert(DeviceRuntimeState state, DeviceAlert alert)
-    {
-        state.ActiveAlerts[alert.Kind] = alert;
-        lock (_alertLock) _alertLog.Add(alert);
-    }
-
-    private static void PruneArrivals(DeviceRuntimeState state, DateTime nowUtc)
+    private static void PruneArrivals(DeviceRecord record, DateTime nowUtc)
     {
         var cutoff = nowUtc - GatewayTiming.DeliveryWindow;
-        while (state.RecentArrivals.Count > 0 && state.RecentArrivals.Peek() < cutoff)
-            state.RecentArrivals.Dequeue();
+        while (record.RecentArrivals.Count > 0 && record.RecentArrivals.Peek() < cutoff)
+            record.RecentArrivals.Dequeue();
     }
 
     /// <summary>
     /// Packet-delivery success score over a sliding window: received packets / expected transmissions.
     /// One window of tolerance absorbs phase jitter between the sender and the measurement window.
     /// </summary>
-    private static double? ComputeDeliveryPercent(DeviceRuntimeState state, DateTime nowUtc)
+    private static double? ComputeDeliveryPercent(DeviceRecord record, DateTime nowUtc)
     {
-        if (state.FirstReceivedAt is not DateTime first) return null;
+        if (record.FirstReceivedAt is not DateTime first) return null;
 
         var observed = nowUtc - first;
         if (observed > GatewayTiming.DeliveryWindow) observed = GatewayTiming.DeliveryWindow;
 
         int expected = (int)Math.Floor(observed / GatewayTiming.TransmissionInterval) - 1;
-        if (expected <= 0) return state.LastReceivedAt.HasValue ? 100.0 : null;
+        if (expected <= 0) return record.LastReceivedAt.HasValue ? 100.0 : null;
 
-        return Math.Round(Math.Min(100.0, state.RecentArrivals.Count * 100.0 / expected), 1);
+        return Math.Round(Math.Min(100.0, record.RecentArrivals.Count * 100.0 / expected), 1);
     }
 
     private static object? ProjectValue<T>(T value) => value switch
     {
         PowerMetric p => p.Watts,
         bool b => b,
-        float f => (double)f,
+        float f => Math.Round((double)f, 4),
         double d => d,
         int i => (double)i,
         _ => value
