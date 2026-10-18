@@ -290,9 +290,25 @@ public class ApiCommandStreamTests : IClassFixture<SmartXApiFactory>
     private async Task<List<JsonElement>> PollAsDeviceAsync(string mac) =>
         (await _client.GetJsonAsync($"/api/devices/{Api.Escape(mac)}/commands")).EnumerateArray().ToList();
 
+    /// <summary>Acts as the actuators: acknowledges every in-flight command so each test starts from a settled fleet.</summary>
+    private async Task SettleActuatorsAsync()
+    {
+        foreach (var mac in new[] { Api.Solenoid, Api.Hvac, Api.Grid2, Api.SubstationMain })
+            await PollAsDeviceAsync(mac);
+
+        var history = await _client.GetJsonAsync("/api/commands/history?limit=200");
+        foreach (var command in history.EnumerateArray().SelectMany(b => b.GetProperty("commands").EnumerateArray()).Where(c => c.GetProperty("isPending").GetBoolean()))
+        {
+            var mac = command.GetProperty("macAddress").GetString()!;
+            await _client.PostAsJsonAsync($"/api/devices/{Api.Escape(mac)}/commands/{command.GetProperty("id").GetString()}/ack",
+                new { success = true, appliedState = command.GetProperty("targetState").GetBoolean() });
+        }
+    }
+
     [Fact]
     public async Task Command_RoundTrip_QueuedDeliveredAcknowledged_ThenUndo()
     {
+        await SettleActuatorsAsync();
         await _client.SendStateAsync(Api.Solenoid, false);
         await _client.WaitForDeviceAsync(Api.Solenoid, v => v.GetProperty("reportedState").ValueKind == JsonValueKind.False, "solenoid reports OFF");
         await PollAsDeviceAsync(Api.Solenoid); // drain commands left by other tests
@@ -328,6 +344,7 @@ public class ApiCommandStreamTests : IClassFixture<SmartXApiFactory>
     [Fact]
     public async Task IrrigationAck_RestartsTheBaselineOfSensorsInTheSameZone()
     {
+        await SettleActuatorsAsync();
         for (int i = 0; i < 25; i++) await _client.SendMoistureAsync(Api.RackA, 50 + i % 3);
         await _client.WaitForDeviceAsync(Api.RackA, v => v.GetProperty("latestTelemetry").GetProperty("rollingMean").ValueKind == JsonValueKind.Number, "baseline established");
 
@@ -346,6 +363,7 @@ public class ApiCommandStreamTests : IClassFixture<SmartXApiFactory>
     [Fact]
     public async Task BulkCommand_IsUndoneAsOneBatch()
     {
+        await SettleActuatorsAsync();
         await _client.SendStateAsync(Api.Hvac, true);
         await _client.SendStateAsync(Api.Solenoid, true);
         await _client.WaitForDeviceAsync(Api.Hvac, v => v.GetProperty("reportedState").ValueKind == JsonValueKind.True, "hvac ON");
@@ -362,6 +380,23 @@ public class ApiCommandStreamTests : IClassFixture<SmartXApiFactory>
         Assert.Equal("Shut down all valves", undo.GetProperty("reverted").GetProperty("label").GetString());
         Assert.Equal(2, undo.GetProperty("undoBatch").GetProperty("commands").GetArrayLength());
         Assert.All(undo.GetProperty("undoBatch").GetProperty("commands").EnumerateArray(), c => Assert.True(c.GetProperty("targetState").GetBoolean()));
+    }
+
+    [Fact]
+    public async Task RapidCommands_UseTheInFlightStateAsPreviousState_SoUndoRestoresIt()
+    {
+        await SettleActuatorsAsync();
+        await _client.SendStateAsync(Api.Hvac, false);
+        await _client.WaitForDeviceAsync(Api.Hvac, v => v.GetProperty("reportedState").ValueKind == JsonValueKind.False, "hvac OFF");
+        await PollAsDeviceAsync(Api.Hvac);
+
+        await IssueAsync(Api.Hvac, true);                      // not yet acknowledged by the device
+        var off = await IssueAsync(Api.Hvac, false, "Shut down");
+        Assert.True(off.GetProperty("commands")[0].GetProperty("previousState").GetBoolean());
+
+        var undo = await (await _client.PostAsync("/api/commands/undo", null)).ReadJsonAsync();
+        Assert.Equal("Shut down", undo.GetProperty("reverted").GetProperty("label").GetString());
+        Assert.True(undo.GetProperty("undoBatch").GetProperty("commands")[0].GetProperty("targetState").GetBoolean());
     }
 
     [Fact]
@@ -403,6 +438,7 @@ public class ApiCommandStreamTests : IClassFixture<SmartXApiFactory>
     [Fact]
     public async Task Recommendations_SuggestIrrigation_WhenRackBDriesOut_AndAcceptIssuesTheCommand()
     {
+        await SettleActuatorsAsync();
         await _client.SendStateAsync(Api.Solenoid, false);
         await _client.SendMoistureAsync(Api.RackB, 12);
         await _client.WaitForDeviceAsync(Api.RackB, v => Api.LatestValue(v) == 12, "low moisture processed");

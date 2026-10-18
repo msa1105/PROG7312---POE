@@ -33,7 +33,8 @@ public static class CommandEndpoints
                 if (requests.Any(r => r.MacAddress == device.MacAddress))
                     return BadRequest($"Device {device.MacAddress} appears more than once in the batch.");
 
-                requests.Add(new CommandRequest(device.MacAddress, RecommendationService.DeviceName(device), target.TargetState, registry.GetReportedState(device.MacAddress)));
+                requests.Add(new CommandRequest(device.MacAddress, RecommendationService.DeviceName(device), target.TargetState,
+                    dispatcher.ExpectedState(device.MacAddress, registry.GetReportedState(device.MacAddress))));
             }
 
             var label = string.IsNullOrWhiteSpace(req.Label)

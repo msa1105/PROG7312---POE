@@ -197,6 +197,24 @@ public class CommandDispatcher
         lock (_lock) return _commandsById.TryGetValue(id, out var command) ? command : null;
     }
 
+    /// <summary>
+    /// Target state of the newest command still in flight for a device (null when none). Commands issued in quick
+    /// succession must treat this as the device's state, because the device has not reported it yet.
+    /// </summary>
+    public bool? LatestPendingTarget(string macAddress)
+    {
+        lock (_lock)
+        {
+            return _outboxes.TryGetValue(macAddress, out var outbox)
+                ? _commandsById.Values.Where(c => c.IsPending && c.MacAddress.Equals(macAddress, StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(c => c.IssuedAt).Select(c => (bool?)c.TargetState).FirstOrDefault()
+                : null;
+        }
+    }
+
+    /// <summary>The state a device is expected to be in: its latest in-flight target, otherwise what it last reported.</summary>
+    public bool? ExpectedState(string macAddress, bool? reportedState) => LatestPendingTarget(macAddress) ?? reportedState;
+
     public int PendingCount(string macAddress)
     {
         lock (_lock)

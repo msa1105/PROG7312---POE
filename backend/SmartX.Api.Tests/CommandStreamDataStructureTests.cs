@@ -147,6 +147,20 @@ public class CommandStreamDataStructureTests
     }
 
     [Fact]
+    public void Dispatcher_ExpectedState_PrefersTheNewestInFlightCommand()
+    {
+        var dispatcher = new CommandDispatcher();
+        Assert.False(dispatcher.ExpectedState(Valve, reportedState: false));
+
+        dispatcher.Issue("open", CommandSource.Operator, new[] { Request(Valve, true, false) });
+        Assert.True(dispatcher.ExpectedState(Valve, reportedState: false)); // device has not reported ON yet
+
+        var command = dispatcher.DequeueForDevice(Valve).Single();
+        dispatcher.Acknowledge(Valve, command.Id, true, true, "opened");
+        Assert.False(dispatcher.ExpectedState(Valve, reportedState: false)); // acknowledged: reported state is authoritative again
+    }
+
+    [Fact]
     public void Dispatcher_ExpiresCommandsThatAreNeverAcknowledged()
     {
         var dispatcher = new CommandDispatcher();

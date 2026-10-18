@@ -373,7 +373,7 @@ public class RecommendationService
         if (suggestion.Kind == "Command" && suggestion.TargetState is bool target)
         {
             var batch = _commands.Issue(suggestion.Title, CommandSource.Suggestion,
-                new[] { new CommandRequest(suggestion.MacAddress, suggestion.DeviceName, target, _registry.GetReportedState(suggestion.MacAddress)) }, issuedBy);
+                new[] { new CommandRequest(suggestion.MacAddress, suggestion.DeviceName, target, _commands.ExpectedState(suggestion.MacAddress, _registry.GetReportedState(suggestion.MacAddress))) }, issuedBy);
             RecordCommandBatch(batch);
             return new SuggestionAcceptance(suggestion, batch);
         }
