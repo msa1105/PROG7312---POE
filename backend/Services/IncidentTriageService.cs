@@ -12,6 +12,7 @@ public class IncidentTriageService
     // The required List collection to store user-reported issues
     private readonly List<IncidentIssue> _issues = new();
     private readonly object _lock = new();
+    private int _nextIssueNumber = 1004;
 
     public IncidentTriageService()
     {
@@ -31,6 +32,7 @@ public class IncidentTriageService
             Status = IncidentStatus.InTriage,
             ReportedBy = "Operator-Alpha",
             ReportedAt = DateTime.UtcNow.AddMinutes(-45),
+            TriagedAt = DateTime.UtcNow.AddMinutes(-38),
             XpAwarded = 100
         });
 
@@ -57,6 +59,7 @@ public class IncidentTriageService
             Status = IncidentStatus.Resolved,
             ReportedBy = "Operator-Alpha",
             ReportedAt = DateTime.UtcNow.AddHours(-2),
+            TriagedAt = DateTime.UtcNow.AddMinutes(-110),
             ResolvedAt = DateTime.UtcNow.AddMinutes(-30),
             ResolutionNotes = "Relay contacts inspected and verified nominal.",
             XpAwarded = 200
@@ -65,13 +68,24 @@ public class IncidentTriageService
 
     public IncidentIssue ReportIssue(IncidentIssue issue)
     {
+        if (string.IsNullOrWhiteSpace(issue.Title))
+            throw new ArgumentException("Incident title is required.", nameof(issue));
+        if (string.IsNullOrWhiteSpace(issue.MacAddress))
+            throw new ArgumentException("Target sensor MAC address is required.", nameof(issue));
+        if (!Enum.IsDefined(issue.Severity))
+            throw new ArgumentException("Unknown incident severity.", nameof(issue));
+
         lock (_lock)
         {
-            if (string.IsNullOrWhiteSpace(issue.Id))
-            {
-                issue.Id = $"ISS-{Random.Shared.Next(1004, 9999)}";
-            }
+            // Identifiers, timestamps, status and XP are server-owned
+            issue.Id = $"ISS-{_nextIssueNumber++}";
+            issue.MacAddress = issue.MacAddress.Trim().ToUpperInvariant();
+            issue.Title = issue.Title.Trim();
+            issue.ReportedBy = string.IsNullOrWhiteSpace(issue.ReportedBy) ? "Operator-1" : issue.ReportedBy.Trim();
             issue.ReportedAt = DateTime.UtcNow;
+            issue.TriagedAt = null;
+            issue.ResolvedAt = null;
+            issue.ResolutionNotes = null;
             issue.Status = IncidentStatus.Reported;
             issue.XpAwarded = issue.Severity switch
             {
@@ -116,25 +130,41 @@ public class IncidentTriageService
 
     public IncidentIssue? UpdateStatus(string id, IncidentStatus newStatus, string? notes = null)
     {
+        if (!Enum.IsDefined(newStatus))
+            throw new ArgumentException("Unknown incident status.", nameof(newStatus));
+
         lock (_lock)
         {
             var issue = _issues.FirstOrDefault(i => i.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
             if (issue == null) return null;
 
+            var now = DateTime.UtcNow;
             issue.Status = newStatus;
-            if (newStatus == IncidentStatus.Resolved)
+            switch (newStatus)
             {
-                issue.ResolvedAt = DateTime.UtcNow;
-                if (!string.IsNullOrWhiteSpace(notes))
-                {
-                    issue.ResolutionNotes = notes;
-                }
+                case IncidentStatus.Reported:
+                    issue.TriagedAt = null;
+                    issue.ResolvedAt = null;
+                    issue.ResolutionNotes = null;
+                    break;
+                case IncidentStatus.InTriage:
+                    issue.TriagedAt ??= now;
+                    issue.ResolvedAt = null;
+                    break;
+                case IncidentStatus.Resolved:
+                    issue.TriagedAt ??= now;
+                    issue.ResolvedAt = now;
+                    if (!string.IsNullOrWhiteSpace(notes))
+                    {
+                        issue.ResolutionNotes = notes.Trim();
+                    }
+                    break;
             }
             return issue;
         }
     }
 
-    public OperatorEngagementStats GetEngagementStats()
+    public OperatorEngagementStats GetEngagementStats(double? meanTimeToDetectSeconds = null)
     {
         lock (_lock)
         {
@@ -164,6 +194,13 @@ public class IncidentTriageService
 
             double resolutionRate = totalReported > 0 ? ((double)totalResolved / totalReported) * 100.0 : 100.0;
 
+            // Mean-Time-To-Triage: report -> claimed for triage
+            var triageSamples = _issues
+                .Where(i => i.TriagedAt.HasValue)
+                .Select(i => (i.TriagedAt!.Value - i.ReportedAt).TotalSeconds)
+                .ToList();
+            double? meanTimeToTriage = triageSamples.Count == 0 ? null : Math.Round(triageSamples.Average(), 1);
+
             return new OperatorEngagementStats(
                 TotalReported: totalReported,
                 TotalInTriage: totalInTriage,
@@ -172,7 +209,9 @@ public class IncidentTriageService
                 OperatorLevel: operatorLevel,
                 OperatorRank: rank,
                 ResolutionRatePercent: Math.Round(resolutionRate, 1),
-                Badges: badges
+                Badges: badges,
+                MeanTimeToTriageSeconds: meanTimeToTriage,
+                MeanTimeToDetectSeconds: meanTimeToDetectSeconds
             );
         }
     }

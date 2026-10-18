@@ -25,6 +25,7 @@ public class IncidentIssue
     public IncidentStatus Status { get; set; } = IncidentStatus.Reported;
     public string ReportedBy { get; set; } = "Operator-1";
     public DateTime ReportedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? TriagedAt { get; set; }
     public DateTime? ResolvedAt { get; set; }
     public string? ResolutionNotes { get; set; }
     public int XpAwarded { get; set; } = 50;
@@ -38,5 +39,7 @@ public record OperatorEngagementStats(
     int OperatorLevel,
     string OperatorRank,
     double ResolutionRatePercent,
-    List<string> Badges
+    List<string> Badges,
+    double? MeanTimeToTriageSeconds,
+    double? MeanTimeToDetectSeconds
 );
