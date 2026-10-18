@@ -38,6 +38,29 @@ public class RecommendationEngineTests
     }
 
     [Fact]
+    public void PatternModel_ActionInTheLiveEpisode_CountsTowardsTheDenominator()
+    {
+        var model = new ActionPatternModel();
+        var t = DateTime.UtcNow.AddHours(-1);
+        for (int episode = 0; episode < 2; episode++)
+        {
+            var onset = t.AddMinutes(episode * 10);
+            model.ObserveConditions(new[] { "LOW|B" }, onset);
+            model.Record(Event(onset.AddSeconds(30), "CMD|pump|ON"));
+            model.ObserveConditions(Array.Empty<string>(), onset.AddMinutes(5));
+        }
+
+        var now = DateTime.UtcNow;
+        model.ObserveConditions(new[] { "LOW|B" }, now);
+        model.Record(Event(now.AddSeconds(5), "CMD|pump|ON")); // taken again during the live episode
+
+        var candidate = Assert.Single(model.GetCandidates(now.AddSeconds(6)), c => c.FromCondition);
+        Assert.Equal(3, candidate.Support);
+        Assert.Equal(3, candidate.Episodes);
+        Assert.Equal(1.0, candidate.Confidence);
+    }
+
+    [Fact]
     public void PatternModel_CountsAnActionOncePerEpisode()
     {
         var model = new ActionPatternModel();

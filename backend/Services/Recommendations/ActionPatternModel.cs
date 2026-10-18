@@ -130,13 +130,16 @@ public class ActionPatternModel
 
         lock (_lock)
         {
-            foreach (var conditionKey in _activeConditions.Keys)
+            foreach (var (conditionKey, onset) in _activeConditions)
             {
                 if (!_conditionActions.TryGetValue(conditionKey, out var actions)) continue;
-                int episodes = Math.Max(1, _conditionEpisodes.GetValueOrDefault(conditionKey) - 1); // exclude the live episode
+                int totalEpisodes = _conditionEpisodes.GetValueOrDefault(conditionKey);
 
                 foreach (var (actionKey, count) in actions)
                 {
+                    // The live episode only counts towards the denominator once the action has been taken in it
+                    bool takenInLiveEpisode = _countedEpisodeActions.Contains($"{conditionKey}#{onset.Ticks}#{actionKey}");
+                    int episodes = Math.Max(1, takenInLiveEpisode ? totalEpisodes : totalEpisodes - 1);
                     double confidence = Math.Min(1.0, (double)count / episodes);
                     if (count >= minimumSupport && confidence >= minimumConfidence)
                         candidates.Add(new PatternCandidate(actionKey, conditionKey, true, count, episodes, confidence));
