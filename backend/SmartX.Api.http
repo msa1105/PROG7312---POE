@@ -1,6 +1,30 @@
 @SmartX.Api_HostAddress = http://localhost:5240
 
-GET {{SmartX.Api_HostAddress}}/weatherforecast/
+GET {{SmartX.Api_HostAddress}}/api/health
 Accept: application/json
+
+###
+
+GET {{SmartX.Api_HostAddress}}/api/sensors
+Accept: application/json
+
+###
+
+GET {{SmartX.Api_HostAddress}}/api/topology/live
+Accept: application/json
+
+###
+
+POST {{SmartX.Api_HostAddress}}/api/simulation/spike
+Content-Type: application/json
+
+{ "macAddress": "24:6F:28:9A:12:03", "multiplier": 4.5 }
+
+###
+
+POST {{SmartX.Api_HostAddress}}/api/telemetry/ingest/power
+Content-Type: application/json
+
+{ "macAddress": "24:6F:28:9A:12:03", "value": { "watts": 405.5 }, "metricUnit": "W" }
 
 ###

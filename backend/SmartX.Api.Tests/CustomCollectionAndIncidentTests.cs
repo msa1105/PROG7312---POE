@@ -74,7 +74,7 @@ public class CustomCollectionAndIncidentTests
     [Fact]
     public async Task FileEncryptionService_EncryptsAndDecryptsAccurately()
     {
-        var encService = new FileEncryptionService();
+        var encService = new FileEncryptionService(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
         var tempFile = Path.GetTempFileName();
         var testContent = "Test payload for AES-256 sensor log encryption at rest.";
 
