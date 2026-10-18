@@ -81,6 +81,21 @@ export const AppShell = () => {
         <Outlet />
       </main>
 
+      {/* Optimistic-update rollbacks and confirmations */}
+      {store.notices.length > 0 && (
+        <div className="fixed bottom-4 left-4 z-[130] flex flex-col gap-2 w-96 font-mono text-xs" aria-live="polite">
+          {store.notices.map(n => (
+            <div
+              key={n.id}
+              role="status"
+              className={`p-3 rounded-sm border shadow-xl ${n.tone === 'error' ? 'bg-rose-950 border-rose-700 text-rose-200' : 'bg-zinc-900 border-zinc-700 text-zinc-200'}`}
+            >
+              {n.text}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Real-time critical alert toasts (pushed over SignalR) */}
       {store.toasts.length > 0 && (
         <div className="fixed bottom-4 right-4 z-[130] flex flex-col gap-2 w-80 font-mono text-xs">

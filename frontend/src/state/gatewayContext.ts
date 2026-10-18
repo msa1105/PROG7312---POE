@@ -1,9 +1,11 @@
 import { createContext, useContext } from 'react';
-import type { CommandState, DeviceAlert, DeviceView, PipelineState, RecommendationSnapshot } from '../types/telemetry';
+import type { ActionSuggestion, CommandState, DeviceAlert, DeviceView, PipelineState, RecommendationSnapshot, SensorCategory } from '../types/telemetry';
+import type { CommandTarget } from './optimistic';
 
 export type SensorHistory = Record<string, { lastPacketId: string | null; values: number[] }>;
 export type ConnectionState = 'connecting' | 'live' | 'reconnecting' | 'offline';
 export type AlertToast = { id: string; alert: DeviceAlert; deviceName: string };
+export type Notice = { id: number; text: string; tone: 'ok' | 'error' };
 
 export type GatewayStoreValue = {
   devices: DeviceView[];
@@ -23,6 +25,18 @@ export type GatewayStoreValue = {
   refreshRecommendations: () => Promise<void>;
   refreshPipeline: () => Promise<void>;
   clearHistory: () => void;
+
+  // Optimistic actions: the UI updates immediately; the API confirms or the change is rolled back
+  notices: Notice[];
+  pushNotice: (text: string, tone?: 'ok' | 'error') => void;
+  /** Issues override commands. Resolves to false (after rolling back) when the API rejects them. */
+  issueCommand: (targets: CommandTarget[], label?: string) => Promise<boolean>;
+  undoLastCommand: () => Promise<boolean>;
+  canUndo: boolean;
+  acceptSuggestion: (suggestion: ActionSuggestion) => Promise<boolean>;
+  dismissSuggestion: (suggestion: ActionSuggestion) => Promise<boolean>;
+  acknowledgeAlerts: (macAddress: string, notes?: string) => Promise<boolean>;
+  registerDevice: (device: { macAddress: string; deploymentLocation: string; category: SensorCategory }) => Promise<boolean>;
 
   // Per-module UI state that must persist across route changes
   zoneFilter: string | null;
