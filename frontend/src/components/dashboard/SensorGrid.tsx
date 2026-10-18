@@ -1,19 +1,18 @@
 import { useState, useEffect } from 'react';
 import { SensorCard } from './SensorCard';
 import type { DeviceView } from '../../types/telemetry';
-
-export type SensorHistory = Record<string, { lastPacketId: string | null; values: number[] }>;
+import type { SensorHistory } from '../../state/gatewayContext';
 
 type SensorGridProps = {
   devices: DeviceView[];
   history: SensorHistory;
-  fetchedAt: number;
+  receivedAt: Record<string, number>;
   onOpenDrawer: (macAddress: string) => void;
   onRefresh: () => Promise<void> | void;
   onReportIncident: (macAddress: string) => void;
 };
 
-export const SensorGrid = ({ devices, history, fetchedAt, onOpenDrawer, onRefresh, onReportIncident }: SensorGridProps) => {
+export const SensorGrid = ({ devices, history, receivedAt, onOpenDrawer, onRefresh, onReportIncident }: SensorGridProps) => {
   // Ticks every second so offline duration timers keep counting between polls
   const [now, setNow] = useState(() => Date.now());
 
@@ -35,7 +34,7 @@ export const SensorGrid = ({ devices, history, fetchedAt, onOpenDrawer, onRefres
           key={d.device.macAddress}
           deviceData={d}
           history={history[d.device.macAddress]?.values ?? []}
-          fetchedAt={fetchedAt}
+          fetchedAt={receivedAt[d.device.macAddress] ?? now}
           now={now}
           onOpenDrawer={onOpenDrawer}
           onRefresh={onRefresh}

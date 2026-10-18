@@ -27,8 +27,9 @@ export const SensorCard = ({ deviceData, history, fetchedAt, now, onOpenDrawer, 
 
   // Latched alerts persist until acknowledged (HITL triage), so short spikes are never missed between polls
   const anomalyAlert = activeAlerts.find(a => a.kind === 'Anomaly');
+  const thresholdAlert = activeAlerts.find(a => a.kind === 'ThresholdBreach');
   const heartbeatAlert = activeAlerts.find(a => a.kind === 'HeartbeatLost');
-  const isAnomaly = !!anomalyAlert;
+  const isAnomaly = !!anomalyAlert || !!thresholdAlert;
   const needsTriage = activeAlerts.length > 0 || isOffline;
 
   const unit = latestTelemetry?.metricUnit ?? '';
@@ -112,7 +113,7 @@ export const SensorCard = ({ deviceData, history, fetchedAt, now, onOpenDrawer, 
             </span>
           ) : isAnomaly ? (
             <span className="text-[9px] font-mono font-bold bg-rose-950 text-rose-400 px-1.5 py-0.5 rounded-sm border border-rose-900 animate-pulse">
-              OUTLIER
+              {thresholdAlert ? thresholdAlert.severity.toUpperCase() : 'OUTLIER'}
             </span>
           ) : heartbeatAlert ? (
             <span className="text-[9px] font-mono font-bold bg-amber-950/60 text-amber-400 px-1.5 py-0.5 rounded-sm border border-amber-900">
@@ -153,6 +154,10 @@ export const SensorCard = ({ deviceData, history, fetchedAt, now, onOpenDrawer, 
         <div className="mt-4 text-xs font-mono text-amber-500 flex justify-between items-center bg-amber-950/30 p-2 rounded-sm border border-amber-900/50">
           <span>DISCONNECTED: {secondsOffline !== null ? formatDuration(secondsOffline) : 'never seen'}</span>
           <span className="text-[10px] text-amber-600">lease {status.leaseSeconds}s</span>
+        </div>
+      ) : thresholdAlert ? (
+        <div className="mt-4 text-xs font-mono text-rose-400 bg-rose-950/30 p-2 rounded-sm border border-rose-900/50">
+          ⚠ {thresholdAlert.message}
         </div>
       ) : anomalyAlert ? (
         <div className="mt-4 text-xs font-mono text-rose-400 flex justify-between items-center gap-2 bg-rose-950/30 p-2 rounded-sm border border-rose-900/50">

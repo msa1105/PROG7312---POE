@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Server, Activity, Plus, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { getApiErrorMessage } from '../../services/api';
+import type { ConnectionState } from '../../state/gatewayContext';
 
 type HeaderProps = {
   onReturnToLanding: () => void;
@@ -12,6 +13,7 @@ type HeaderProps = {
   onToggleTriage?: () => void;
   activeTriageCount?: number;
   isBackendOnline?: boolean;
+  connection?: ConnectionState;
 };
 
 export const Header = ({ 
@@ -23,7 +25,8 @@ export const Header = ({
   onReset,
   onToggleTriage,
   activeTriageCount = 0,
-  isBackendOnline = true
+  isBackendOnline = true,
+  connection = 'live'
 }: HeaderProps) => {
   const [time, setTime] = useState(new Date().toISOString().substring(11, 19));
   const [toast, setToast] = useState<{msg: string, type: 'success' | 'error' | 'info'} | null>(null);
@@ -86,6 +89,15 @@ export const Header = ({
           <div className="flex items-center gap-2 text-zinc-400">
             <span className={`h-2 w-2 rounded-full animate-pulse ${isBackendOnline ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
             SYSTEM STATUS: {isBackendOnline ? 'ONLINE' : <span className="text-rose-400 font-bold">GATEWAY UNREACHABLE</span>}
+          </div>
+          <div
+            className={`hidden md:flex items-center gap-1.5 px-2 py-0.5 rounded border text-[10px] font-bold uppercase ${
+              connection === 'live' ? 'border-emerald-800 text-emerald-400' : connection === 'offline' ? 'border-rose-800 text-rose-400' : 'border-amber-800 text-amber-400'
+            }`}
+            title="Real-time push channel (SignalR). Falls back to HTTP polling when unavailable."
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${connection === 'live' ? 'bg-emerald-400' : connection === 'offline' ? 'bg-rose-400' : 'bg-amber-400 animate-pulse'}`}></span>
+            {connection === 'live' ? 'Live stream' : connection === 'offline' ? 'Polling fallback' : 'Reconnecting'}
           </div>
           <div className="text-zinc-500 hidden sm:block">
             UTC: {time}

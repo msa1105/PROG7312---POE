@@ -18,10 +18,11 @@ import { formatDuration } from '../../utils/telemetry';
 
 type GatewayLandingProps = {
   onEnterIngestion: () => void;
+  onEnterCommandStream: () => void;
   registeredDeviceCount: number;
 };
 
-export const GatewayLandingView = ({ onEnterIngestion, registeredDeviceCount }: GatewayLandingProps) => {
+export const GatewayLandingView = ({ onEnterIngestion, onEnterCommandStream, registeredDeviceCount }: GatewayLandingProps) => {
   const [health, setHealth] = useState<GatewayHealth | null>(null);
   const [latency, setLatency] = useState<number | null>(null);
   const [lockedModal, setLockedModal] = useState<{ title: string; desc: string; milestone: string } | null>(null);
@@ -104,7 +105,7 @@ export const GatewayLandingView = ({ onEnterIngestion, registeredDeviceCount }: 
       <div className="text-center max-w-3xl mx-auto mb-10">
         <div className="inline-flex items-center gap-2 px-3 py-1 bg-zinc-900 border border-zinc-700/80 rounded-full text-xs font-mono text-zinc-300 mb-4">
           <ShieldCheck size={14} className="text-emerald-400" />
-          PROG7312 PoE Task 2 Architecture Gateway
+          PROG7312 PoE Part 2 • Real-Time Processing Gateway
         </div>
         <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-zinc-100 uppercase mb-4">
           Smart-X <span className="bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 bg-clip-text text-transparent">Telemetry Gateway</span>
@@ -172,57 +173,54 @@ export const GatewayLandingView = ({ onEnterIngestion, registeredDeviceCount }: 
           </button>
         </div>
 
-        {/* Pillar 2: Command Stream & History (Disabled - Part 2) */}
-        <div 
-          onClick={() => setLockedModal({
-            title: 'Pillar 2: Real-Time Command Stream & History',
-            milestone: 'Part 2 Milestone (Locked)',
-            desc: 'Bi-directional actuator command dispatch, queue scheduling, and historical event stream replay are scheduled for delivery in PROG7312 Part 2. The ingestion foundation in Part 1 is engineered to feed this command pipeline.'
-          })}
-          className="relative rounded-md border border-zinc-800 bg-zinc-950/70 p-6 flex flex-col justify-between opacity-75 hover:opacity-100 hover:border-zinc-700 transition-all cursor-pointer group"
-        >
-          <div className="absolute -top-3 right-4 bg-zinc-900 border border-zinc-700 text-zinc-400 text-[10px] font-mono px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
-            <Lock size={10} /> Part 2 Milestone
+        {/* Pillar 2: Command Stream & History (Active - Part 2) */}
+        <div className="relative group rounded-md border-2 border-cyan-500/80 bg-zinc-900/90 p-6 flex flex-col justify-between shadow-[0_0_30px_rgba(6,182,212,0.12)] hover:border-cyan-400 transition-all">
+          <div className="absolute -top-3 right-4 bg-cyan-950 border border-cyan-500 text-cyan-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+            Part 2 • Active Command Stream
           </div>
 
           <div>
-            <div className="w-12 h-12 rounded-sm bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-zinc-400 mb-4">
+            <div className="w-12 h-12 rounded-sm bg-cyan-950/60 border border-cyan-500/40 flex items-center justify-center text-cyan-400 mb-4">
               <History size={24} />
             </div>
 
-            <h2 className="text-lg font-bold text-zinc-300 uppercase tracking-wide mb-2 flex items-center gap-2">
+            <h2 className="text-lg font-bold text-zinc-100 uppercase tracking-wide mb-2 flex items-center gap-2">
               2. Command Stream &amp; History
             </h2>
 
-            <p className="text-xs text-zinc-500 leading-relaxed mb-6">
-              Bi-directional hardware control channel. Dispatches remote actuation signals, verifies ACK handshakes, and logs audit trails.
+            <p className="text-xs text-zinc-400 leading-relaxed mb-6">
+              Real-time processing engine. Issues manual overrides to edge actuators, prioritises critical alerts, and predicts the next operational action.
             </p>
 
-            <div className="space-y-2 border-t border-zinc-800/80 pt-4 mb-6 font-mono text-xs text-zinc-600">
+            <div className="space-y-2 border-t border-zinc-800/80 pt-4 mb-6 font-mono text-xs text-zinc-300">
               <div className="flex items-center gap-2">
-                <Lock size={12} className="text-zinc-600" />
-                <span>Two-Way RPC Actuation Bus</span>
+                <CheckCircle2 size={13} className="text-cyan-400 shrink-0" />
+                <span><strong className="text-zinc-100">Queue&lt;T&gt; + PriorityQueue</strong> Ingestion Lanes</span>
               </div>
               <div className="flex items-center gap-2">
-                <Lock size={12} className="text-zinc-600" />
-                <span>Command Priority Queues</span>
+                <CheckCircle2 size={13} className="text-cyan-400 shrink-0" />
+                <span><strong className="text-zinc-100">Stack&lt;T&gt;</strong> Command Undo History</span>
               </div>
               <div className="flex items-center gap-2">
-                <Lock size={12} className="text-zinc-600" />
-                <span>Sequential Historical Audit Log</span>
+                <CheckCircle2 size={13} className="text-cyan-400 shrink-0" />
+                <span><strong className="text-zinc-100">Dictionary / SortedDictionary</strong> Lookups &amp; Timelines</span>
               </div>
               <div className="flex items-center gap-2">
-                <Lock size={12} className="text-zinc-600" />
-                <span>Failover &amp; Safety Circuit Breakers</span>
+                <CheckCircle2 size={13} className="text-cyan-400 shrink-0" />
+                <span><strong className="text-zinc-100">HashSet&lt;T&gt;</strong> Unique Alert States</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={13} className="text-cyan-400 shrink-0" />
+                <span><strong className="text-zinc-100">Predictive</strong> Suggested Actions</span>
               </div>
             </div>
           </div>
 
           <button
-            disabled
-            className="w-full bg-zinc-900 text-zinc-500 border border-zinc-800 py-3 px-4 rounded-sm flex items-center justify-center gap-2 uppercase tracking-wider text-xs cursor-not-allowed"
+            onClick={onEnterCommandStream}
+            className="w-full bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-bold py-3 px-4 rounded-sm flex items-center justify-center gap-2 uppercase tracking-wider text-xs transition-all shadow-md group-hover:scale-[1.01]"
           >
-            <Lock size={14} /> Provisioning in Part 2
+            Launch Command Stream <ArrowRight size={16} />
           </button>
         </div>
 
