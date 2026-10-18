@@ -12,11 +12,23 @@ import type {
   PingResult,
   DeviceAlert,
   LiveTopology,
-  TopologyValidationResult
+  TopologyValidationResult,
+  CommandBatch,
+  CommandState,
+  CommandStackSummary,
+  PipelineState,
+  TimelinePoint,
+  CriticalEventKind,
+  RecommendationSnapshot,
+  OperatorEvent
 } from '../types/telemetry';
 
 // Same-origin '/api' is proxied to the .NET backend by Vite (dev/preview) and nginx (Docker)
 export const API_BASE_URL: string = import.meta.env.VITE_API_URL || '/api';
+
+// SignalR hub lives beside the API (proxied the same way, including the WebSocket upgrade)
+export const HUB_URL: string = import.meta.env.VITE_HUB_URL
+  || (API_BASE_URL.startsWith('http') ? API_BASE_URL.replace(/\/api\/?$/, '/hubs/gateway') : '/hubs/gateway');
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -186,6 +198,83 @@ export const api = {
 
   simulationReset: async () => {
     const response = await apiClient.post('/simulation/reset');
+    return response.data;
+  },
+
+  simulationRestoreHeartbeat: async (macAddress: string) => {
+    const response = await apiClient.post('/simulation/restore-heartbeat', { macAddress });
+    return response.data;
+  },
+
+  simulationCritical: async (macAddress: string, kind: CriticalEventKind) => {
+    const response = await apiClient.post('/simulation/critical', { macAddress, kind });
+    return response.data;
+  },
+
+  simulationFlood: async (macAddress: string, count: number) => {
+    const response = await apiClient.post('/simulation/flood', { macAddress, count });
+    return response.data;
+  },
+
+  // ---------- Part 2: Real-Time Command Stream ----------
+
+  issueCommand: async (targets: { macAddress: string; targetState: boolean }[], label?: string): Promise<CommandBatch> => {
+    const response = await apiClient.post<CommandBatch>('/commands', { targets, label, issuedBy: 'Operator-Gateway' });
+    return response.data;
+  },
+
+  undoLastCommand: async (): Promise<{ reverted: CommandBatch; undoBatch: CommandBatch }> => {
+    const response = await apiClient.post('/commands/undo');
+    return response.data;
+  },
+
+  getCommandState: async (): Promise<CommandState> => {
+    const [history, undoStack] = await Promise.all([
+      apiClient.get<CommandBatch[]>('/commands/history', { params: { limit: 40 } }),
+      apiClient.get<CommandStackSummary>('/commands/stack'),
+    ]);
+    return { history: history.data, undoStack: undoStack.data };
+  },
+
+  getPipelineState: async (): Promise<PipelineState> => {
+    const response = await apiClient.get<PipelineState>('/pipeline/stats');
+    return response.data;
+  },
+
+  setProcessingCost: async (milliseconds: number) => {
+    const response = await apiClient.post('/pipeline/processing-cost', { milliseconds });
+    return response.data;
+  },
+
+  getTimeline: async (macAddress: string, minutes: number, maxPoints = 120): Promise<TimelinePoint[]> => {
+    const response = await apiClient.get<TimelinePoint[]>(`/sensors/${mac(macAddress)}/timeline`, { params: { minutes, maxPoints } });
+    return response.data;
+  },
+
+  logSearch: async (query: string, matchedMacs: string[]) => {
+    const response = await apiClient.post('/operator/searches', { query, matchedMacs });
+    return response.data;
+  },
+
+  getOperatorEvents: async (limit = 20): Promise<OperatorEvent[]> => {
+    const response = await apiClient.get<OperatorEvent[]>('/operator/events', { params: { limit } });
+    return response.data;
+  },
+
+  // ---------- Part 2: Predictive Action & Recommendation Engine ----------
+
+  getRecommendations: async (): Promise<RecommendationSnapshot> => {
+    const response = await apiClient.get<RecommendationSnapshot>('/recommendations');
+    return response.data;
+  },
+
+  acceptSuggestion: async (id: string) => {
+    const response = await apiClient.post(`/recommendations/${encodeURIComponent(id)}/accept`);
+    return response.data;
+  },
+
+  dismissSuggestion: async (id: string) => {
+    const response = await apiClient.post(`/recommendations/${encodeURIComponent(id)}/dismiss`);
     return response.data;
   }
 };

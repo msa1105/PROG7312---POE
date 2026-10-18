@@ -42,6 +42,7 @@ export interface TelemetrySnapshot {
   rollingStdDev: number | null;
   signalStrengthDbm: number | null;
   batteryPercent: number | null;
+  relayOn?: boolean | null;
 }
 
 export interface DeviceConnectionStatus {
@@ -52,12 +53,14 @@ export interface DeviceConnectionStatus {
   packetDeliveryPercent: number | null;
 }
 
-export type AlertKind = 'Anomaly' | 'HeartbeatLost';
+export type AlertKind = 'Anomaly' | 'HeartbeatLost' | 'ThresholdBreach';
+export type AlertSeverity = 'Critical' | 'High' | 'Warning';
 
 export interface DeviceAlert {
   id: string;
   macAddress: string;
   kind: AlertKind;
+  severity: AlertSeverity;
   raisedAt: string;
   message: string;
   triggerValue: number | null;
@@ -72,9 +75,13 @@ export interface DeviceAlert {
 
 export interface DeviceView {
   device: SensorDevice;
+  deviceName: string;
   latestTelemetry: TelemetrySnapshot | null;
   status: DeviceConnectionStatus;
   activeAlerts: DeviceAlert[];
+  isControllable: boolean;
+  reportedState: boolean | null;
+  pendingCommands: number;
 }
 
 export interface PingResult {
@@ -197,4 +204,167 @@ export interface GatewayHealth {
   leaseSeconds: number;
   operatorEngagement: OperatorEngagementStats;
   timestamp: string;
+}
+
+// ---------- Part 2: Real-Time Command Stream ----------
+
+export type CommandStatus = 'Queued' | 'Delivered' | 'Acknowledged' | 'Failed' | 'Expired';
+export type CommandSource = 'Operator' | 'Undo' | 'Suggestion';
+
+export interface DeviceCommand {
+  id: string;
+  batchId: string;
+  macAddress: string;
+  deviceName: string;
+  targetState: boolean;
+  previousState: boolean | null;
+  source: CommandSource;
+  issuedBy: string;
+  issuedAt: string;
+  status: CommandStatus;
+  deliveredAt: string | null;
+  completedAt: string | null;
+  appliedState: boolean | null;
+  deviceMessage: string | null;
+  description: string;
+  isPending: boolean;
+}
+
+export interface CommandBatch {
+  id: string;
+  label: string;
+  source: CommandSource;
+  issuedAt: string;
+  commands: DeviceCommand[];
+  revertsBatchId: string | null;
+  isReverted: boolean;
+  revertedAt: string | null;
+}
+
+export interface CommandStackSummary {
+  depth: number;
+  top: CommandBatch | null;
+}
+
+export interface CommandState {
+  history: CommandBatch[];
+  undoStack: CommandStackSummary;
+}
+
+export type IngestionLane = 'Standard' | 'Priority';
+
+export interface LaneStats {
+  depth: number;
+  peakDepth: number;
+  enqueued: number;
+  processed: number;
+  averageWaitMs: number;
+  lastWaitMs: number;
+}
+
+export interface PriorityBypass {
+  sequence: number;
+  macAddress: string;
+  reason: string;
+  overtookStandardPackets: number;
+  waitMs: number;
+  processedAt: string;
+}
+
+export interface IngestionQueueStats {
+  standard: LaneStats;
+  priority: LaneStats;
+  rejected: number;
+  standardCapacity: number;
+  simulatedProcessingCostMs: number;
+  lastBypass: PriorityBypass | null;
+  largestBypass: PriorityBypass | null;
+  recentBypasses: PriorityBypass[];
+}
+
+export interface AlertTrackerStats {
+  activeAlerts: number;
+  disconnectedNodes: number;
+  duplicateAlertsSuppressed: number;
+  duplicateDisconnectsSuppressed: number;
+  totalRaised: number;
+}
+
+export interface PipelineState {
+  queue: IngestionQueueStats;
+  alerts: AlertTrackerStats;
+  disconnectedNodes: string[];
+}
+
+export interface TimelinePoint {
+  timestamp: string;
+  value: number | null;
+  min: number | null;
+  max: number | null;
+  samples: number;
+  isAnomaly: boolean;
+}
+
+export type CriticalEventKind = 'MoistureCrash' | 'PowerSurge';
+
+// ---------- Part 2: Predictive Action & Recommendation Engine ----------
+
+export interface ActiveCondition {
+  key: string;
+  kind: string;
+  macAddress: string;
+  deviceName: string;
+  label: string;
+  severity: AlertSeverity;
+}
+
+export interface ActionSuggestion {
+  id: string;
+  kind: 'Command' | 'Inspect';
+  title: string;
+  reason: string;
+  confidence: number;
+  score: number;
+  support: number;
+  episodes: number;
+  macAddress: string;
+  deviceName: string;
+  targetState: boolean | null;
+  triggerLabel: string;
+}
+
+export interface AutomatedInsight {
+  id: string;
+  severity: AlertSeverity;
+  category: string;
+  macAddress: string;
+  deviceName: string;
+  title: string;
+  detail: string;
+  recommendation: string;
+}
+
+export interface PatternModelStats {
+  eventsLearned: number;
+  seededEvents: number;
+  conditionPatterns: number;
+  sequencePatterns: number;
+  activeConditions: number;
+}
+
+export interface RecommendationSnapshot {
+  suggestions: ActionSuggestion[];
+  insights: AutomatedInsight[];
+  conditions: ActiveCondition[];
+  model: PatternModelStats;
+  generatedAt: string;
+}
+
+export interface OperatorEvent {
+  at: string;
+  kind: 'Search' | 'Command';
+  actionKey: string;
+  label: string;
+  query: string | null;
+  seeded: boolean;
 }
