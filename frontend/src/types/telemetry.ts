@@ -8,7 +8,6 @@ export type SensorCategory = (typeof SensorCategory)[keyof typeof SensorCategory
 
 export interface DeviceAttachment {
   fileName: string;
-  filePath: string;
   sizeBytes: number;
   mimeType: string;
   uploadedAt: string;
@@ -29,6 +28,91 @@ export interface TelemetryPacket<T> {
   metricUnit: string;
 }
 
+/** Type-erased TelemetryPacket<T> as stored by the gateway, with the rolling baseline used to score it. */
+export interface TelemetrySnapshot {
+  packetId: string;
+  macAddress: string;
+  timestamp: string;
+  value: number | boolean | null;
+  metricUnit: string;
+  payloadType: string;
+  isAnomaly: boolean;
+  zScore: number | null;
+  rollingMean: number | null;
+  rollingStdDev: number | null;
+  signalStrengthDbm: number | null;
+  batteryPercent: number | null;
+}
+
+export interface DeviceConnectionStatus {
+  isOnline: boolean;
+  secondsSinceLastPacket: number | null;
+  leaseSeconds: number;
+  packetsReceived: number;
+  packetDeliveryPercent: number | null;
+}
+
+export type AlertKind = 'Anomaly' | 'HeartbeatLost';
+
+export interface DeviceAlert {
+  id: string;
+  macAddress: string;
+  kind: AlertKind;
+  raisedAt: string;
+  message: string;
+  triggerValue: number | null;
+  baselineMean: number | null;
+  zScore: number | null;
+  deviation: number | null;
+  acknowledgedAt: string | null;
+  acknowledgedBy: string | null;
+  notes: string | null;
+  isActive: boolean;
+}
+
+export interface DeviceView {
+  device: SensorDevice;
+  latestTelemetry: TelemetrySnapshot | null;
+  status: DeviceConnectionStatus;
+  activeAlerts: DeviceAlert[];
+}
+
+export interface PingResult {
+  macAddress: string;
+  reachable: boolean;
+  secondsSinceLastPacket: number | null;
+  leaseSeconds: number;
+  lastSignalStrengthDbm: number | null;
+  lastBatteryPercent: number | null;
+  checkedAt: string;
+}
+
+export interface LiveTopologyNode {
+  nodeId: string;
+  name: string;
+  kind: 'gateway' | 'facility' | 'zone' | 'device';
+  macAddress: string | null;
+  isActive: boolean;
+  isDegraded: boolean;
+  totalDevices: number;
+  onlineDevices: number;
+  activeAlerts: number;
+  availabilityPercent: number | null;
+  packetDeliveryPercent: number | null;
+  subNodes: LiveTopologyNode[];
+}
+
+export interface TopologyValidationResult {
+  isValid: boolean;
+  reason: string;
+  auditTrail: string[];
+}
+
+export interface LiveTopology {
+  root: LiveTopologyNode;
+  validation: TopologyValidationResult;
+}
+
 export type IncidentSeverity = 'Low' | 'Medium' | 'High' | 'Critical' | number;
 export type IncidentStatus = 'Reported' | 'InTriage' | 'Resolved' | number;
 
@@ -41,8 +125,9 @@ export interface IncidentIssue {
   status: IncidentStatus;
   reportedBy: string;
   reportedAt: string;
-  resolvedAt?: string;
-  resolutionNotes?: string;
+  triagedAt?: string | null;
+  resolvedAt?: string | null;
+  resolutionNotes?: string | null;
   xpAwarded: number;
 }
 
@@ -55,6 +140,8 @@ export interface OperatorEngagementStats {
   operatorRank: string;
   resolutionRatePercent: number;
   badges: string[];
+  meanTimeToTriageSeconds: number | null;
+  meanTimeToDetectSeconds: number | null;
 }
 
 export interface PowerAggregationResult {
@@ -76,18 +163,20 @@ export interface ChannelStatus {
   sampleValues: number[];
 }
 
+export interface IngestionStateMetrics {
+  currentCount: number;
+  capacity: number;
+  totalIngested: number;
+  droppedPackets: number;
+  lastIngestedAt: string | null;
+}
+
 export interface JaggedBufferStatus {
   totalChannels: number;
   totalBufferedReadings: number;
   totalEstimatedBytes: number;
   channels: ChannelStatus[];
-  customCollectionMetrics: {
-    currentCount: number;
-    capacity: number;
-    totalIngested: number;
-    droppedPackets: number;
-    lastIngestedAt: string | null;
-  };
+  customCollectionMetrics: IngestionStateMetrics;
 }
 
 export interface GatewayHealth {
@@ -95,7 +184,17 @@ export interface GatewayHealth {
   gatewayVersion: string;
   uptimeSeconds: number;
   activeDeviceCount: number;
+  registeredDeviceCount: number;
+  availabilityPercent: number | null;
+  packetDeliveryPercent: number | null;
+  totalTelemetryPackets: number;
   totalIngestedPackets: number;
+  jaggedBufferedReadings: number;
+  bufferMetrics: IngestionStateMetrics;
+  anomaliesLastMinute: number;
+  activeAlertCount: number;
+  meanTimeToDetectSeconds: number | null;
+  leaseSeconds: number;
   operatorEngagement: OperatorEngagementStats;
   timestamp: string;
 }

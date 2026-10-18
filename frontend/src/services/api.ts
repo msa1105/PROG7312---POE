@@ -1,15 +1,22 @@
 import axios from 'axios';
-import type { 
-  SensorDevice, 
-  TelemetryPacket, 
-  IncidentIssue, 
-  OperatorEngagementStats, 
-  PowerAggregationResult, 
-  JaggedBufferStatus, 
-  GatewayHealth 
+import type {
+  SensorDevice,
+  TelemetryPacket,
+  IncidentIssue,
+  OperatorEngagementStats,
+  PowerAggregationResult,
+  JaggedBufferStatus,
+  GatewayHealth,
+  DeviceView,
+  TelemetrySnapshot,
+  PingResult,
+  DeviceAlert,
+  LiveTopology,
+  TopologyValidationResult
 } from '../types/telemetry';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.port === '3000' ? '/api' : 'http://localhost:5240/api');
+// Same-origin '/api' is proxied to the .NET backend by Vite (dev/preview) and nginx (Docker)
+export const API_BASE_URL: string = import.meta.env.VITE_API_URL || '/api';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -17,6 +24,21 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+/** Extracts the most useful human-readable message from an API error. */
+export const getApiErrorMessage = (err: unknown, fallback: string): string => {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data;
+    if (typeof data === 'string' && data.trim()) return data;
+    if (data?.error) return String(data.error);
+    if (data?.detail) return String(data.detail);
+    if (data?.title) return String(data.title);
+    return err.message || fallback;
+  }
+  return err instanceof Error ? err.message : fallback;
+};
+
+const mac = (macAddress: string) => encodeURIComponent(macAddress);
 
 export const api = {
   // Gateway Status
@@ -31,8 +53,29 @@ export const api = {
     return response.data;
   },
 
-  getAllDevices: async (): Promise<{ device: SensorDevice, latestTelemetry: any }[]> => {
-    const response = await apiClient.get('/sensors');
+  getAllDevices: async (): Promise<DeviceView[]> => {
+    const response = await apiClient.get<DeviceView[]>('/sensors');
+    return response.data;
+  },
+
+  getDeviceHistory: async (macAddress: string): Promise<TelemetrySnapshot[]> => {
+    const response = await apiClient.get<TelemetrySnapshot[]>(`/sensors/${mac(macAddress)}/history`);
+    return response.data;
+  },
+
+  // Human-in-the-Loop inline triage actions
+  pingDevice: async (macAddress: string): Promise<PingResult> => {
+    const response = await apiClient.post<PingResult>(`/sensors/${mac(macAddress)}/ping`);
+    return response.data;
+  },
+
+  restartIngestionBuffer: async (macAddress: string): Promise<{ message: string }> => {
+    const response = await apiClient.post(`/sensors/${mac(macAddress)}/buffer/restart`);
+    return response.data;
+  },
+
+  acknowledgeAlerts: async (macAddress: string, notes?: string): Promise<{ acknowledgedCount: number; alerts: DeviceAlert[]; meanTimeToDetectSeconds: number | null }> => {
+    const response = await apiClient.post(`/sensors/${mac(macAddress)}/alerts/acknowledge`, { notes, acknowledgedBy: 'Operator-Gateway' });
     return response.data;
   },
 
@@ -44,6 +87,11 @@ export const api = {
 
   ingestIntTelemetry: async (packet: TelemetryPacket<number>) => {
     const response = await apiClient.post('/telemetry/ingest/int', packet);
+    return response.data;
+  },
+
+  ingestPowerTelemetry: async (packet: TelemetryPacket<{ watts: number }>) => {
+    const response = await apiClient.post('/telemetry/ingest/power', packet);
     return response.data;
   },
 
@@ -71,7 +119,7 @@ export const api = {
   uploadAttachment: async (macAddress: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await apiClient.post(`/sensors/${macAddress}/attachments`, formData, {
+    const response = await apiClient.post(`/sensors/${mac(macAddress)}/attachments`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -80,12 +128,19 @@ export const api = {
   },
 
   getAttachmentDownloadUrl: (macAddress: string, fileName: string): string => {
-    return `${API_BASE_URL}/sensors/${encodeURIComponent(macAddress)}/attachments/${encodeURIComponent(fileName)}`;
+    return `${API_BASE_URL}/sensors/${mac(macAddress)}/attachments/${encodeURIComponent(fileName)}`;
   },
-  
-  // Topology Validation
-  validateTopology: async (rootNode: any) => {
-    const response = await apiClient.post('/topology/validate', rootNode);
+
+  // Topology Validation (400 responses carry the audit result, so they are not treated as errors)
+  validateTopology: async (rootNode: unknown): Promise<TopologyValidationResult> => {
+    const response = await apiClient.post<TopologyValidationResult>('/topology/validate', rootNode, {
+      validateStatus: status => status === 200 || status === 400,
+    });
+    return response.data;
+  },
+
+  getLiveTopology: async (): Promise<LiveTopology> => {
+    const response = await apiClient.get<LiveTopology>('/topology/live');
     return response.data;
   },
 
@@ -104,7 +159,7 @@ export const api = {
   },
 
   updateIssueStatus: async (id: string, status: number | string, notes?: string): Promise<IncidentIssue> => {
-    const response = await apiClient.patch<IncidentIssue>(`/issues/${id}/status`, { status, notes });
+    const response = await apiClient.patch<IncidentIssue>(`/issues/${encodeURIComponent(id)}/status`, { status, notes });
     return response.data;
   },
 
@@ -124,7 +179,7 @@ export const api = {
     return response.data;
   },
 
-  simulationBurst: async () => {
+  simulationBurst: async (): Promise<{ processedCount: number; elapsedMs: number }> => {
     const response = await apiClient.post('/simulation/burst-batch');
     return response.data;
   },
