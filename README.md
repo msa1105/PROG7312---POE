@@ -291,7 +291,7 @@ Execute the xUnit suite. Part 1 tests cover `PowerMetric` operator overloads, `B
 cd "c:/Users/alexa/OneDrive/Desktop/PROG7312/PROG7312 - POE/backend/SmartX.Api.Tests"
 dotnet test
 ```
-*Expected Result: 96 tests passed (0 failed, 0 skipped), in roughly 10 seconds.*
+*Expected Result: 98 tests passed (0 failed, 0 skipped), in roughly 10 seconds.*
 
 ### 2. Frontend Production Verification
 ```powershell
@@ -308,6 +308,21 @@ npm run build
 - **Routes:** `/` (landing), `/ingestion` (Pillar 1), `/commands` (Pillar 2), `/topology` (Pillar 3, locked until the final PoE). Pages are code-split with `React.lazy` and load asynchronously.
 - **State preservation:** `GatewayStoreProvider` (`frontend/src/state`) sits above the router and owns the SignalR connection, device views, sparkline history, command history, queue statistics, recommendations and each module's UI state (zone filter, topology tab, open drawer, triage deck). Command Stream filters live in the URL and are restored when you navigate back through the pillar menu.
 - **Resilience:** if the WebSocket drops, the store falls back to HTTP polling and reconnects automatically. Malformed or unknown requests return `400`/`404` problem responses instead of crashing the API.
+
+### Optimistic UI
+Every operator action updates the screen immediately, before the API has validated it, and is then reconciled with the server:
+
+| Action | Shown instantly | Confirmed by | On rejection |
+| :--- | :--- | :--- | :--- |
+| ON / OFF override, bulk shutdown | New device state (dashed badge + spinner) and a "Sending…" history entry | The device reporting that state over HTTP | State restored; the server's reason shown in a notice |
+| Undo (button or Ctrl+Z) | Inverse state; batch struck through as Reverted | The undo batch and device reports | Batch and states restored |
+| Apply / Dismiss suggestion | Suggestion removed; command applied | API response, then the next pushed snapshot | Suggestion reappears with the reason |
+| Acknowledge alerts | Latched alerts cleared | API response | Alerts restored |
+| Register node | Node listed right away | API response | Node removed with the validation message |
+| Report / triage incident | Incident listed as "Logging…" / status changed | Server copy with its `ISS-` id | Form reopened with the error / status reverted |
+| Attachment upload | File listed as "Encrypting…" | Encrypted attachment returned by the API | Entry removed with the reason |
+
+The overlay lives in the shared store (`frontend/src/state/optimistic.ts`). While a request is in flight the local change always wins, so a pushed snapshot can't make it flicker back. A device that never confirms a command within 25 s, or reports it as failed or expired, is shown in its reported state again. On the server, a command's "previous state" is the device's *expected* state (its newest in-flight command, else its reported state), so Undo stays correct when commands are issued faster than devices acknowledge them.
 
 ### "Like a device": the external simulator
 `simulator/SmartX.DeviceSimulator` is a separate .NET program. It never touches the API's memory; every reading, backlog upload, command poll and acknowledgement is an HTTP request. Its physical model:
