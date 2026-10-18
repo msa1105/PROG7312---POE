@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   AlertTriangle, 
   Award, 
@@ -16,6 +16,8 @@ import type { IncidentIssue, OperatorEngagementStats } from '../../types/telemet
 import { api, getApiErrorMessage } from '../../services/api';
 import { formatBenchmark } from '../../utils/telemetry';
 
+const XP_BY_SEVERITY: Record<number, number> = { 0: 25, 1: 50, 2: 100, 3: 150 };
+
 type IncidentCenterProps = {
   initialReportMac?: string;
   openReportOnMount?: boolean;
@@ -32,8 +34,14 @@ export const IncidentTriageCenter = ({ initialReportMac, openReportOnMount = fal
   const [reportError, setReportError] = useState<string | null>(null);
   const [newDesc, setNewDesc] = useState('');
   const [newSeverity, setNewSeverity] = useState<number>(2); // High
-  const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' } | null>(null);
+  const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  // Optimistic updates in flight: background refreshes must not overwrite them until the API answers
+  const inFlight = useRef(0);
+
+  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
+    setToast({ text, type });
+    setTimeout(() => setToast(null), type === 'error' ? 6000 : 3500);
+  };
 
   const fetchIssuesAndStats = async () => {
     try {
@@ -41,6 +49,7 @@ export const IncidentTriageCenter = ({ initialReportMac, openReportOnMount = fal
         api.getIssues(),
         api.getEngagementStats()
       ]);
+      if (inFlight.current > 0) return;
       setIssues(issuesData);
       setStats(statsData);
     } catch (err) {
@@ -54,42 +63,67 @@ export const IncidentTriageCenter = ({ initialReportMac, openReportOnMount = fal
     return () => clearInterval(interval);
   }, []);
 
+  // Optimistic: the incident appears in the list at once; it is replaced by the server copy or removed on rejection
   const handleReport = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setReportError(null);
+
+    const draft = { macAddress: newMac.trim().toUpperCase(), title: newTitle, description: newDesc, severity: newSeverity };
+    const expectedXp = XP_BY_SEVERITY[newSeverity] ?? 25;
+    const tempId = `PENDING-${Date.now()}`;
+    const placeholder: IncidentIssue = {
+      id: tempId, ...draft, status: 0, reportedBy: 'Operator-Gateway', reportedAt: new Date().toISOString(), xpAwarded: expectedXp
+    };
+
+    inFlight.current++;
+    setIssues(prev => [placeholder, ...prev]);
+    setIsReportingOpen(false);
+    setNewTitle('');
+    setNewDesc('');
+    showToast(`Incident logged! +${expectedXp} XP awarded to Operator profile`);
+
     try {
-      const created = await api.reportIssue({
-        macAddress: newMac.trim().toUpperCase(),
-        title: newTitle,
-        description: newDesc,
-        severity: newSeverity,
-        reportedBy: 'Operator-Gateway'
-      });
-      setToast({ text: `Incident ${created.id} logged! +${created.xpAwarded} XP awarded to Operator profile`, type: 'success' });
-      setTimeout(() => setToast(null), 3500);
-      setNewTitle('');
-      setNewDesc('');
-      setIsReportingOpen(false);
-      await fetchIssuesAndStats();
+      const created = await api.reportIssue({ ...draft, reportedBy: 'Operator-Gateway' });
+      setIssues(prev => prev.map(i => (i.id === tempId ? created : i)));
     } catch (err: unknown) {
+      setIssues(prev => prev.filter(i => i.id !== tempId));
+      // Restore the form so the operator can correct the rejected report
+      setNewTitle(draft.title);
+      setNewDesc(draft.description);
+      setNewMac(draft.macAddress);
+      setNewSeverity(draft.severity);
       setReportError(getApiErrorMessage(err, 'Failed to report issue.'));
+      setIsReportingOpen(true);
+      showToast('Incident report was rejected by the gateway.', 'error');
+    } finally {
+      inFlight.current--;
     }
-    setLoading(false);
+    await fetchIssuesAndStats();
   };
 
+  // Optimistic: the status changes immediately and is reverted if the gateway rejects it
   const handleStatusChange = async (id: string, newStatus: number, notes?: string) => {
+    const snapshot = issues;
+    const now = new Date().toISOString();
+    inFlight.current++;
+    setIssues(prev => prev.map(i => i.id !== id ? i : {
+      ...i,
+      status: newStatus,
+      triagedAt: newStatus >= 1 ? (i.triagedAt ?? now) : null,
+      resolvedAt: newStatus === 2 ? now : null,
+      resolutionNotes: newStatus === 2 && notes ? notes : i.resolutionNotes,
+    }));
+    showToast(newStatus === 2 ? 'Incident Resolved! +150 Operator XP bonus!' : 'Triage Status Updated.');
+
     try {
       await api.updateIssueStatus(id, newStatus, notes);
-      setToast({ 
-        text: newStatus === 2 ? 'Incident Resolved! +150 Operator XP bonus!' : 'Triage Status Updated.', 
-        type: 'success' 
-      });
-      setTimeout(() => setToast(null), 3500);
-      await fetchIssuesAndStats();
     } catch (err) {
-      console.error('Failed to update status:', err);
+      setIssues(snapshot);
+      showToast(`Status change reverted: ${getApiErrorMessage(err, 'request failed')}`, 'error');
+    } finally {
+      inFlight.current--;
     }
+    await fetchIssuesAndStats();
   };
 
   const filteredIssues = issues.filter(issue => {
@@ -103,8 +137,8 @@ export const IncidentTriageCenter = ({ initialReportMac, openReportOnMount = fal
     <div className="bg-zinc-900/60 border border-zinc-800 rounded-sm p-5 font-mono text-xs text-zinc-300">
       {/* Toast Feedback */}
       {toast && (
-        <div className="mb-4 p-3 bg-emerald-950 border border-emerald-500 text-emerald-300 rounded flex items-center gap-2 animate-in fade-in duration-200">
-          <Sparkles size={16} className="text-emerald-400 shrink-0" />
+        <div className={`mb-4 p-3 rounded flex items-center gap-2 animate-in fade-in duration-200 border ${toast.type === 'error' ? 'bg-rose-950 border-rose-600 text-rose-200' : 'bg-emerald-950 border-emerald-500 text-emerald-300'}`}>
+          <Sparkles size={16} className={`shrink-0 ${toast.type === 'error' ? 'text-rose-400' : 'text-emerald-400'}`} />
           <span className="font-bold">{toast.text}</span>
         </div>
       )}
@@ -230,7 +264,7 @@ export const IncidentTriageCenter = ({ initialReportMac, openReportOnMount = fal
               >
                 <div className="flex items-start justify-between gap-2 mb-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-zinc-200">{issue.id}</span>
+                    <span className="font-bold text-zinc-200">{issue.id.startsWith('PENDING-') ? 'Logging…' : issue.id}</span>
                     <span className="text-[10px] text-cyan-400 bg-cyan-950/50 px-1.5 py-0.5 rounded border border-cyan-800">
                       {issue.macAddress}
                     </span>
@@ -388,10 +422,9 @@ export const IncidentTriageCenter = ({ initialReportMac, openReportOnMount = fal
                 </button>
                 <button
                   type="submit"
-                  disabled={loading}
                   className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded"
                 >
-                  {loading ? 'Submitting...' : 'Commit to Issue List'}
+                  Commit to Issue List
                 </button>
               </div>
             </form>

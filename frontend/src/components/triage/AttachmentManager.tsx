@@ -5,7 +5,7 @@ import type { DeviceAttachment, SensorDevice } from '../../types/telemetry';
 
 type AttachmentProps = {
   device: SensorDevice;
-  onRefresh?: () => void;
+  onRefresh?: () => void | Promise<void>;
 };
 
 export const AttachmentManager = ({ device, onRefresh }: AttachmentProps) => {
@@ -13,6 +13,8 @@ export const AttachmentManager = ({ device, onRefresh }: AttachmentProps) => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  // Files shown immediately while they stream to the gateway
+  const [pendingFiles, setPendingFiles] = useState<{ name: string; size: number }[]>([]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -21,14 +23,16 @@ export const AttachmentManager = ({ device, onRefresh }: AttachmentProps) => {
     setUploading(true);
     setError(null);
     setSuccessMsg(null);
+    setPendingFiles(prev => [...prev.filter(f => f.name !== file.name), { name: file.name, size: file.size }]);
     try {
       await api.uploadAttachment(device.macAddress, file);
       setSuccessMsg(`File uploaded and encrypted with AES-256-CBC at rest.`);
       setTimeout(() => setSuccessMsg(null), 4000);
-      if (onRefresh) onRefresh();
+      if (onRefresh) await onRefresh();
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, 'Failed to upload attachment.'));
+      setError(`${file.name} was rejected: ${getApiErrorMessage(err, 'Failed to upload attachment.')}`);
     }
+    setPendingFiles(prev => prev.filter(f => f.name !== file.name));
     setUploading(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -47,6 +51,19 @@ export const AttachmentManager = ({ device, onRefresh }: AttachmentProps) => {
       </div>
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-sm p-4 text-xs text-zinc-300">
+        {pendingFiles.length > 0 && (
+          <ul className="space-y-2 mb-2">
+            {pendingFiles.map(f => (
+              <li key={f.name} className="flex justify-between items-center bg-zinc-950 p-2.5 border border-dashed border-cyan-800 rounded-sm animate-pulse">
+                <span className="flex items-center gap-2 text-zinc-300">
+                  <File size={13} className="text-zinc-500 shrink-0" />
+                  <span className="truncate max-w-[180px]">{f.name}</span>
+                </span>
+                <span className="text-cyan-400 text-[10px]">Encrypting… {(f.size / 1024).toFixed(1)} KB</span>
+              </li>
+            ))}
+          </ul>
+        )}
         {device.attachments && device.attachments.length > 0 ? (
           <ul className="space-y-2 mb-4">
             {device.attachments.map((att: DeviceAttachment) => {

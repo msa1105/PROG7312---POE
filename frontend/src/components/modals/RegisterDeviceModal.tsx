@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Cpu, MapPin, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
-import { api } from '../../services/api';
+import { useGatewayStore } from '../../state/gatewayContext';
+import type { SensorCategory } from '../../types/telemetry';
 
 type RegisterModalProps = {
   existingMacs?: string[];
@@ -16,8 +17,8 @@ export const RegisterDeviceModal = ({ existingMacs = [], onClose, onSuccess }: R
   const [facility, setFacility] = useState('Facility Alpha');
   const [zone, setZone] = useState('Greenhouse 2');
   const [nodeId, setNodeId] = useState('Node-101');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { registerDevice } = useGatewayStore();
 
   const combinedLocation = `${facility.trim()} > ${zone.trim()} > ${nodeId.trim()}`;
   const isMacFormatValid = MAC_REGEX.test(macAddress.trim());
@@ -46,20 +47,13 @@ export const RegisterDeviceModal = ({ existingMacs = [], onClose, onSuccess }: R
       return;
     }
 
-    setLoading(true);
-    setError(null);
-    try {
-      await api.registerDevice({
-        macAddress: macAddress.trim().toUpperCase(),
-        category: category as any,
-        deploymentLocation: combinedLocation
-      });
-      onSuccess();
-      onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.response?.data?.title || 'Failed to register device on gateway.');
-    }
-    setLoading(false);
+    // Optimistic: the node appears immediately; the store removes it and reports the reason if the API rejects it
+    void registerDevice({
+      macAddress: macAddress.trim().toUpperCase(),
+      category: category as SensorCategory,
+      deploymentLocation: combinedLocation
+    }).then(ok => ok && onSuccess());
+    onClose();
   };
 
   return (
@@ -198,10 +192,10 @@ export const RegisterDeviceModal = ({ existingMacs = [], onClose, onSuccess }: R
             </button>
             <button 
               type="submit"
-              disabled={loading || !isMacFormatValid}
+              disabled={!isMacFormatValid}
               className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold py-3 rounded-sm transition-all uppercase tracking-wider disabled:opacity-50 cursor-pointer"
             >
-              {loading ? 'Provisioning...' : 'Provision Node'}
+              Provision Node
             </button>
           </div>
         </form>

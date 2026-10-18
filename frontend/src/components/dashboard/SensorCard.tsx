@@ -4,6 +4,7 @@ import { clsx } from 'clsx';
 import { Sparkline } from './Sparkline';
 import type { DeviceView } from '../../types/telemetry';
 import { api, getApiErrorMessage } from '../../services/api';
+import { useGatewayStore } from '../../state/gatewayContext';
 import { categoryLabel, formatDuration, formatValue, liveSecondsSinceLastPacket } from '../../utils/telemetry';
 
 type SensorCardProps = {
@@ -20,6 +21,12 @@ export const SensorCard = ({ deviceData, history, fetchedAt, now, onOpenDrawer, 
   const { device, latestTelemetry, status, activeAlerts } = deviceData;
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { acknowledgeAlerts } = useGatewayStore();
+
+  const showFeedback = (message: string) => {
+    setActionFeedback(message);
+    setTimeout(() => setActionFeedback(null), 5000);
+  };
 
   // Lease-time heartbeat: the gateway marks a node offline after two missed transmission windows
   const isOffline = !status.isOnline;
@@ -55,18 +62,20 @@ export const SensorCard = ({ deviceData, history, fetchedAt, now, onOpenDrawer, 
       : `No response • lease (${result.leaseSeconds}s) expired • last ${result.lastSignalStrengthDbm ?? '--'} dBm, ${result.lastBatteryPercent ?? '--'}% batt`;
   });
 
-  const handleRestart = () => runAction('Restart', async () => {
-    await api.restartIngestionBuffer(device.macAddress);
-    return 'Ingestion buffer & rolling baseline restarted';
-  });
+  // Optimistic: report the restart at once; only a failure changes the message
+  const handleRestart = () => {
+    showFeedback('Ingestion buffer & rolling baseline restarted');
+    api.restartIngestionBuffer(device.macAddress)
+      .then(() => onRefresh())
+      .catch(err => showFeedback(`Restart failed: ${getApiErrorMessage(err, 'request failed')}`));
+  };
 
+  // Optimistic: alerts disappear immediately and are restored by the store if the API rejects the acknowledgement
   const handleAcknowledge = () => {
     const notes = prompt('Diagnostic notes for the audit trail:', isAnomaly ? 'Spike reviewed; confirmed transient.' : 'Heartbeat loss reviewed.');
     if (notes === null) return;
-    runAction('Acknowledge', async () => {
-      const result = await api.acknowledgeAlerts(device.macAddress, notes);
-      return `${result.acknowledgedCount} alert(s) acknowledged`;
-    });
+    showFeedback(`${activeAlerts.length} alert(s) acknowledged`);
+    void acknowledgeAlerts(device.macAddress, notes);
   };
 
   const stop = (handler: () => void) => (e: React.MouseEvent) => {
