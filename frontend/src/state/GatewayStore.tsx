@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { HubConnectionBuilder, HubConnectionState, LogLevel, type HubConnection } from '@microsoft/signalr';
 import { api, getApiErrorMessage, HUB_URL } from '../services/api';
 import type { ActionSuggestion, CommandBatch, CommandState, DeviceAlert, DeviceView, PipelineState, RecommendationSnapshot, SensorCategory } from '../types/telemetry';
-import { GatewayStoreContext, type AlertToast, type ConnectionState, type GatewayStoreValue, type Notice, type SensorHistory } from './gatewayContext';
+import { DEFAULT_TRIAGE_UI, GatewayStoreContext, type AlertToast, type ConnectionState, type GatewayStoreValue, type Notice, type SensorHistory, type TriageUiState } from './gatewayContext';
 import {
   buildOptimisticBatch, defaultCommandLabel, findUndoTarget, inverseTargets, mergeCommandState, overlayDevice,
   placeholderDevice, resolvePending, type CommandTarget, type PendingState
@@ -12,8 +12,8 @@ import {
  * Application-wide gateway state, mounted above the router so it survives navigation between modules.
  * Live updates arrive over a SignalR hub; REST polling takes over automatically while the hub is unavailable.
  * User actions are optimistic: they update a local overlay at once and are reconciled with (or rolled back by) the API.
- * Reference: ASP.NET Core SignalR JavaScript client (Microsoft Learn) - https://learn.microsoft.com/en-us/aspnet/core/signalr/javascript-client
- * Reference: Passing data deeply with context (react.dev) - https://react.dev/learn/passing-data-deeply-with-context
+ * Reference: Microsoft, 2026a. ASP.NET Core SignalR JavaScript client. [online] Available at: <https://learn.microsoft.com/en-us/aspnet/core/signalr/javascript-client> [Accessed 19 October 2026].
+ * Reference: React, [s.a.]b. Passing data deeply with context. [online] Available at: <https://react.dev/learn/passing-data-deeply-with-context> [Accessed 19 October 2026].
  */
 
 const HISTORY_LENGTH = 30;
@@ -34,7 +34,10 @@ export const GatewayStoreProvider = ({ children }: { children: ReactNode }) => {
   const [topologyTab, setTopologyTab] = useState<'tree' | 'console'>('tree');
   const [selectedMac, setSelectedMac] = useState<string | null>(null);
   const [showTriageDeck, setShowTriageDeck] = useState(false);
-  const [reportRequest, setReportRequest] = useState<{ id: number; mac: string } | null>(null);
+  const [triageUi, setTriageUi] = useState<TriageUiState>(DEFAULT_TRIAGE_UI);
+  const updateTriageUi = useCallback((patch: Partial<TriageUiState> | ((prev: TriageUiState) => Partial<TriageUiState>)) => {
+    setTriageUi(prev => ({ ...prev, ...(typeof patch === 'function' ? patch(prev) : patch) }));
+  }, []);
   const [commandStreamSearch, setCommandStreamSearch] = useState('');
 
   // Optimistic overlay
@@ -428,11 +431,13 @@ export const GatewayStoreProvider = ({ children }: { children: ReactNode }) => {
     setSelectedMac,
     showTriageDeck,
     setShowTriageDeck,
-    reportRequest,
+    triageUi,
+    updateTriageUi,
     commandStreamSearch,
     setCommandStreamSearch,
     requestIncidentReport: (mac: string) => {
-      setReportRequest({ id: Date.now(), mac });
+      // Open the report form pre-filled for this node, keeping anything already typed
+      updateTriageUi(prev => ({ isReportingOpen: true, reportError: null, draft: { ...prev.draft, macAddress: mac } }));
       setShowTriageDeck(true);
       setSelectedMac(null);
     },

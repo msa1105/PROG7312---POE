@@ -1,11 +1,31 @@
 import { createContext, useContext } from 'react';
-import type { ActionSuggestion, CommandState, DeviceAlert, DeviceView, PipelineState, RecommendationSnapshot, SensorCategory } from '../types/telemetry';
+import type { ActionSuggestion, CommandState, DeviceAlert, DeviceView, IncidentIssue, OperatorEngagementStats, PipelineState, RecommendationSnapshot, SensorCategory } from '../types/telemetry';
 import type { CommandTarget } from './optimistic';
 
 export type SensorHistory = Record<string, { lastPacketId: string | null; values: number[] }>;
 export type ConnectionState = 'connecting' | 'live' | 'reconnecting' | 'offline';
 export type AlertToast = { id: string; alert: DeviceAlert; deviceName: string };
 export type Notice = { id: number; text: string; tone: 'ok' | 'error' };
+
+/** Incident triage deck UI state, kept in the store so it survives every route change (including the landing page). */
+export type TriageUiState = {
+  filter: 'all' | 'active' | 'resolved';
+  isReportingOpen: boolean;
+  draft: { macAddress: string; title: string; description: string; severity: number };
+  reportError: string | null;
+  /** Last known incident list and stats, shown immediately when the deck is re-mounted. */
+  issues: IncidentIssue[];
+  stats: OperatorEngagementStats | null;
+};
+
+export const DEFAULT_TRIAGE_UI: TriageUiState = {
+  filter: 'all',
+  isReportingOpen: false,
+  draft: { macAddress: '24:6F:28:9A:12:03', title: '', description: '', severity: 2 },
+  reportError: null,
+  issues: [],
+  stats: null,
+};
 
 export type GatewayStoreValue = {
   devices: DeviceView[];
@@ -47,7 +67,8 @@ export type GatewayStoreValue = {
   setSelectedMac: (mac: string | null) => void;
   showTriageDeck: boolean;
   setShowTriageDeck: (show: boolean) => void;
-  reportRequest: { id: number; mac: string } | null;
+  triageUi: TriageUiState;
+  updateTriageUi: (patch: Partial<TriageUiState> | ((prev: TriageUiState) => Partial<TriageUiState>)) => void;
   requestIncidentReport: (mac: string) => void;
   /** Last query string of the Command Stream page, restored when navigating back to the module. */
   commandStreamSearch: string;

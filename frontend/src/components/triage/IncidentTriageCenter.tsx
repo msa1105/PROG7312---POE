@@ -15,25 +15,36 @@ import {
 import type { IncidentIssue, OperatorEngagementStats } from '../../types/telemetry';
 import { api, getApiErrorMessage } from '../../services/api';
 import { formatBenchmark } from '../../utils/telemetry';
+import { useGatewayStore } from '../../state/gatewayContext';
 
 const XP_BY_SEVERITY: Record<number, number> = { 0: 25, 1: 50, 2: 100, 3: 150 };
 
+type TriageFilter = 'all' | 'active' | 'resolved';
+
 type IncidentCenterProps = {
-  initialReportMac?: string;
-  openReportOnMount?: boolean;
   knownMacs?: string[];
 };
 
-export const IncidentTriageCenter = ({ initialReportMac, openReportOnMount = false, knownMacs = [] }: IncidentCenterProps) => {
-  const [issues, setIssues] = useState<IncidentIssue[]>([]);
-  const [stats, setStats] = useState<OperatorEngagementStats | null>(null);
-  const [filter, setFilter] = useState<'all' | 'active' | 'resolved'>('all');
-  const [isReportingOpen, setIsReportingOpen] = useState(openReportOnMount);
-  const [newTitle, setNewTitle] = useState('');
-  const [newMac, setNewMac] = useState(initialReportMac || '24:6F:28:9A:12:03');
-  const [reportError, setReportError] = useState<string | null>(null);
-  const [newDesc, setNewDesc] = useState('');
-  const [newSeverity, setNewSeverity] = useState<number>(2); // High
+/**
+ * Incident triage deck. Its filter, report form draft and last loaded incidents live in the shared store, so an
+ * unsent report or the selected filter tab survive navigating to any module or back to the landing page.
+ */
+export const IncidentTriageCenter = ({ knownMacs = [] }: IncidentCenterProps) => {
+  const { triageUi, updateTriageUi } = useGatewayStore();
+  const { issues, stats, filter, isReportingOpen, reportError } = triageUi;
+  const { macAddress: newMac, title: newTitle, description: newDesc, severity: newSeverity } = triageUi.draft;
+
+  const setIssues = (next: IncidentIssue[] | ((prev: IncidentIssue[]) => IncidentIssue[])) =>
+    updateTriageUi(prev => ({ issues: typeof next === 'function' ? next(prev.issues) : next }));
+  const setStats = (next: OperatorEngagementStats | null) => updateTriageUi({ stats: next });
+  const setFilter = (next: TriageFilter) => updateTriageUi({ filter: next });
+  const setIsReportingOpen = (open: boolean) => updateTriageUi({ isReportingOpen: open });
+  const setReportError = (error: string | null) => updateTriageUi({ reportError: error });
+  const setDraft = (patch: Partial<typeof triageUi.draft>) => updateTriageUi(prev => ({ draft: { ...prev.draft, ...patch } }));
+  const setNewTitle = (title: string) => setDraft({ title });
+  const setNewMac = (macAddress: string) => setDraft({ macAddress });
+  const setNewDesc = (description: string) => setDraft({ description });
+  const setNewSeverity = (severity: number) => setDraft({ severity });
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   // Optimistic updates in flight: background refreshes must not overwrite them until the API answers
   const inFlight = useRef(0);
@@ -57,9 +68,15 @@ export const IncidentTriageCenter = ({ initialReportMac, openReportOnMount = fal
     }
   };
 
+  // Poll through a ref so the interval always calls the latest closure without being re-created every render
+  const fetchRef = useRef(fetchIssuesAndStats);
   useEffect(() => {
-    fetchIssuesAndStats();
-    const interval = setInterval(fetchIssuesAndStats, 4000);
+    fetchRef.current = fetchIssuesAndStats;
+  });
+
+  useEffect(() => {
+    fetchRef.current();
+    const interval = setInterval(() => fetchRef.current(), 4000);
     return () => clearInterval(interval);
   }, []);
 

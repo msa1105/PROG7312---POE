@@ -15,7 +15,7 @@ const HEARTBEAT_TARGET_MAC = "24:6F:28:9A:12:01";
 /**
  * Persistent layout for every module route. The header, pillar navigation, triage deck, diagnostic drawer and
  * alert toasts live here, so switching between modules only swaps the <Outlet /> content.
- * Reference: React Router - Layout routes / Outlet - https://reactrouter.com/start/declarative/routing
+ * Reference: React Router, [s.a.]a. Routing. [online] Available at: <https://reactrouter.com/start/declarative/routing> [Accessed 19 October 2026].
  */
 export const AppShell = () => {
   const navigate = useNavigate();
@@ -69,12 +69,7 @@ export const AppShell = () => {
         {/* Dynamic Incident Triage & Engagement Deck */}
         {store.showTriageDeck && (
           <div className="mt-4 mb-6 animate-in slide-in-from-top duration-300">
-            <IncidentTriageCenter
-              key={store.reportRequest?.id ?? 'deck'}
-              initialReportMac={store.reportRequest?.mac}
-              openReportOnMount={store.reportRequest !== null}
-              knownMacs={store.devices.map(d => d.device.macAddress)}
-            />
+            <IncidentTriageCenter knownMacs={store.devices.map(d => d.device.macAddress)} />
           </div>
         )}
 
