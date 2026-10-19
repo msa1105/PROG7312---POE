@@ -11,9 +11,9 @@ public record CommandStackSummary(int Depth, CommandBatch? Top);
 /// - Dictionary&lt;mac, Queue&lt;DeviceCommand&gt;&gt;: one FIFO outbox per device, so commands reach a device in issue order.
 /// - Dictionary&lt;Guid, DeviceCommand&gt;: O(1) lookup when a device acknowledges a command by id.
 /// - Stack&lt;CommandBatch&gt;: LIFO undo history; Undo pops the most recent operator action and issues its inverse.
-/// Reference: Stack<T> Class (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.stack-1
-/// Reference: Queue<T> Class (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.queue-1
-/// Reference: Dictionary<TKey,TValue> Class (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.dictionary-2
+/// Reference: Microsoft, 2025m. Stack<T> class (System.Collections.Generic). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.stack-1> [Accessed 19 October 2026].
+/// Reference: Microsoft, 2025i. Queue<T> class (System.Collections.Generic). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.queue-1> [Accessed 19 October 2026].
+/// Reference: Microsoft, 2025a. Dictionary<TKey,TValue> class (System.Collections.Generic). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.dictionary-2> [Accessed 19 October 2026].
 /// </summary>
 public class CommandDispatcher
 {

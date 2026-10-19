@@ -98,7 +98,7 @@ public sealed class MoistureSensor : SimulatedDevice
     }
 
     /// <summary>Standard normal deviate via the Box-Muller transform.</summary>
-    /// <remarks>Reference: Box, G.E.P. and Muller, M.E. (1958) 'A Note on the Generation of Random Normal Deviates', The Annals of Mathematical Statistics, 29(2), pp. 610-611.</remarks>
+    /// <remarks>Reference: Box, G.E.P. and Muller, M.E., 1958. A note on the generation of random normal deviates. The Annals of Mathematical Statistics, 29(2), pp.610-611.</remarks>
     internal static double Gaussian(Random random)
     {
         double u1 = 1.0 - random.NextDouble();

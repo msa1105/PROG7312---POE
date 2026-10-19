@@ -7,7 +7,7 @@ namespace SmartX.DeviceSimulator;
 ///   3. sends one telemetry packet per online device over HTTP,
 ///   4. polls each controllable device's command outbox, applies the commands and acknowledges them.
 /// The loop uses PeriodicTimer for a drift-free cadence.
-/// Reference: Microsoft (2024) PeriodicTimer Class. https://learn.microsoft.com/en-us/dotnet/api/system.threading.periodictimer
+/// Reference: Microsoft, 2025g. PeriodicTimer class (System.Threading). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.threading.periodictimer> [Accessed 19 October 2026].
 /// </summary>
 public class FleetSimulator
 {

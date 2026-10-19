@@ -40,9 +40,9 @@ public record IngestionQueueStats(
 /// - Queue&lt;T&gt;: standard First-In-First-Out lane for routine telemetry.
 /// - PriorityQueue&lt;T, (severity, sequence)&gt;: min-heap lane for critical readings; always drained first,
 ///   ordered by severity, then by arrival sequence (FIFO among equally severe alerts).
-/// Reference: Queue<T> Class (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.queue-1
-/// Reference: PriorityQueue<TElement,TPriority> Class (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.priorityqueue-2
-/// Reference: SemaphoreSlim Class (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.threading.semaphoreslim
+/// Reference: Microsoft, 2025i. Queue<T> class (System.Collections.Generic). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.queue-1> [Accessed 19 October 2026].
+/// Reference: Microsoft, 2025h. PriorityQueue<TElement,TPriority> class (System.Collections.Generic). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.priorityqueue-2> [Accessed 19 October 2026].
+/// Reference: Microsoft, 2025j. SemaphoreSlim class (System.Threading). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.threading.semaphoreslim> [Accessed 19 October 2026].
 /// </summary>
 public class TelemetryIngestionQueue
 {

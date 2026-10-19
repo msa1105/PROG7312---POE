@@ -3,7 +3,7 @@ import type { CommandBatch, CommandSource, CommandState, DeviceCommand, DeviceVi
 /**
  * Optimistic UI helpers. User actions are applied to a local overlay immediately; the overlay is dropped once the
  * server confirms the change (via SignalR push or the API response) or rolled back if the API rejects it.
- * Reference: useOptimistic / optimistic updates pattern (react.dev) - https://react.dev/reference/react/useOptimistic
+ * Reference: React, [s.a.]c. useOptimistic. [online] Available at: <https://react.dev/reference/react/useOptimistic> [Accessed 19 October 2026].
  */
 
 /** How long an optimistic device state may wait for the device to report it before it is abandoned. */

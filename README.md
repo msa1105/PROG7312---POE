@@ -46,15 +46,15 @@ Modules are real client-side routes (`/`, `/ingestion`, `/commands`, `/topology`
 Grounded in **Task 1: Research Report** (*Five Developer-Centric Engagement and Interactivity Strategies* by Muhammed Saif Alexander), the interface implements **Selective Visual Highlighting paired with Hierarchical Progressive Disclosure**, reinforced by **Contextual Reliability Benchmarking** and **Actionable Human-in-the-Loop (HITL) Alert Triage**:
 
 1. **Selective Visual Highlighting via Preattentive Attributes (Endsley, 1995):**  
-   Nominal telemetry is rendered in muted slate and zinc tones. Anomalous spikes ($|Z| > 3.0$ against a rolling 50-reading baseline, scored after a 20-reading warm-up) and offline heartbeat dropouts dynamically shift into high-salience preattentive accents (crimson alert borders, an explicit ▲/▼ deviation vector with its Z-score, amber disconnect badges with a live offline-duration timer). A node is marked offline when no telemetry arrives within **two expected transmission windows** (3 s lease), and the degraded state **bubbles up the recursive deployment hierarchy** to its sub-zone and facility in the Mesh Tree.
+   Nominal telemetry is rendered in muted slate and zinc tones. Anomalous spikes ($|Z| > 3.0$ against a rolling 50-reading baseline, scored after a 20-reading warm-up; Chandola, Banerjee and Kumar, 2009) and offline heartbeat dropouts dynamically shift into high-salience preattentive accents (crimson alert borders, an explicit ▲/▼ deviation vector with its Z-score, amber disconnect badges with a live offline-duration timer). A node is marked offline when no telemetry arrives within **two expected transmission windows** (3 s lease), and the degraded state **bubbles up the recursive deployment hierarchy** to its sub-zone and facility in the Mesh Tree.
 2. **Hierarchical Progressive Disclosure (Shneiderman, 1996; Sweller, 1988):**  
-   High-density data follows the *"overview first, zoom and filter, details-on-demand"* taxonomy. High-level facility KPIs and sensor matrices are presented first; selecting a zone in the Mesh Tree filters the matrix to that sub-zone; clicking any node opens an isolated **Diagnostic Drawer** revealing the unboxed generic payload, last known signal strength and battery level, preceding buffered readings with Z-scores, adjacent sensor trends and downstream dependencies, C# operator overloading calculations, raw jagged buffer channels, and hardware attachments.
-3. **Contextual Reliability Benchmarking (Sailer et al., 2017):**  
+   High-density data follows the *"overview first, zoom and filter, details-on-demand"* taxonomy (Shneiderman, 1996; Heer and Shneiderman, 2012), which keeps dense dashboards readable (Few, 2013). High-level facility KPIs and sensor matrices are presented first; selecting a zone in the Mesh Tree filters the matrix to that sub-zone; clicking any node opens an isolated **Diagnostic Drawer** revealing the unboxed generic payload, last known signal strength and battery level, preceding buffered readings with Z-scores, adjacent sensor trends and downstream dependencies, C# operator overloading calculations, raw jagged buffer channels, and hardware attachments.
+3. **Contextual Reliability Benchmarking (Sailer, et al., 2017):**  
    Replaces superficial gaming mechanics with SRE operational benchmarking: per-node and per-sub-zone packet delivery success scores (received ÷ expected transmissions over 60 s), availability percentages, **Mean-Time-To-Detect** (alert raised → operator acknowledgement), Mean-Time-To-Triage (report → claimed), and reliability ranks (*Operations Apprentice* → *Master Systems Sentinel*).
-4. **Actionable HITL Alert Triage (Parasuraman, Sheridan, & Wickens, 2000):**  
+4. **Actionable HITL Alert Triage (Parasuraman, Sheridan and Wickens, 2000):**  
    Gateway alerts are **latched** until an operator acts on them, so a one-reading spike can never vanish between polls. Each alerting card embeds inline diagnostic actions: **Ping** the node, **Restart** its ingestion buffer and rolling baseline, **Acknowledge** with diagnostic notes, or **Log Incident**. User-reported issues are stored in an API-backed `List<IncidentIssue>` (`IncidentTriageService`), providing inline triage workflows (*Reported* → *In Triage* → *Resolved*) with custom resolution audit notes and operator XP progression.
 
-*Strategy 5 from the report (Direct Manipulation of Edge Thresholds; Hutchins, Hollan & Norman, 1985) was evaluated but not selected, so it is not implemented in Part 1.*
+*Strategy 5 from the report (Direct Manipulation of Edge Thresholds; Hutchins, Hollan and Norman, 1985) was evaluated but not selected, so it is not implemented in Part 1.*
 
 ---
 
@@ -107,7 +107,7 @@ Fulfilling the 5-mark rubric requirement (*"The collection is a custom data stru
 
 Fulfilling the rubric requirement (*"handling multipart streams efficiently... and full encryption included"*):
 - Implemented in `SmartX.Api.Services.FileEncryptionService`.
-- Incoming multipart hardware logs (`.log`, `.txt`), firmware binaries (`.bin`, `.json`), and deployment photos (`.png`, `.jpg`) are streamed directly through an **AES-256-CBC cipher** with a cryptographic 16-byte random IV prepended and an **HMAC-SHA256 tag** appended (encrypt-then-MAC; separate keys derived with HKDF).
+- Incoming multipart hardware logs (`.log`, `.txt`), firmware binaries (`.bin`, `.json`), and deployment photos (`.png`, `.jpg`) are streamed directly through an **AES-256-CBC cipher** with a cryptographic 16-byte random IV prepended and an **HMAC-SHA256 tag** appended (encrypt-then-MAC, following Bellare and Namprempre, 2000; separate keys derived with HKDF, following Krawczyk and Eronen, 2010).
 - Files stored on disk in the `Uploads/` directory remain fully encrypted at rest under server-generated names (`{guid}.enc`), so client file names never reach the file system (path-traversal safe). MIME types come from the extension allow-list, not the client.
 - The 256-bit master key is **never stored in source**: it is read from `Encryption:MasterKey` (base64, e.g. the `Encryption__MasterKey` environment variable) or generated once into the git-ignored `keys/` directory.
 - The backend provides an on-the-fly decrypting streaming endpoint (`GET /api/sensors/{macAddress}/attachments/{fileName}`). The HMAC is verified **before** any plaintext is released; tampered files are refused with HTTP 422.
@@ -338,13 +338,13 @@ The overlay lives in the shared store (`frontend/src/state/optimistic.ts`). Whil
 
 | Requirement | Structure | Implementation |
 | :--- | :--- | :--- |
-| FIFO telemetry processing | `Queue<IngestionEnvelope>` | `Services/Ingestion/TelemetryIngestionQueue.cs` (standard lane) |
-| Critical alerts bypass the queue | `PriorityQueue<IngestionEnvelope, (severity, sequence)>` | Same class (priority lane, always drained first; Critical before High, FIFO among equals) |
-| Command undo history | `Stack<CommandBatch>` | `Services/CommandDispatcher.cs`: Undo pops the latest operator action and issues the inverse commands (a bulk "Shut down all valves" is reverted as one batch) |
+| FIFO telemetry processing | `Queue<IngestionEnvelope>` (Microsoft, 2025i) | `Services/Ingestion/TelemetryIngestionQueue.cs` (standard lane) |
+| Critical alerts bypass the queue | `PriorityQueue<IngestionEnvelope, (severity, sequence)>` (Microsoft, 2025h) | Same class (priority lane, always drained first; Critical before High, FIFO among equals) |
+| Command undo history | `Stack<CommandBatch>` (Microsoft, 2025m) | `Services/CommandDispatcher.cs`: Undo pops the latest operator action and issues the inverse commands (a bulk "Shut down all valves" is reverted as one batch) |
 | Per-device command delivery | `Dictionary<string, Queue<DeviceCommand>>` | `CommandDispatcher` outboxes: commands reach each device in issue order |
-| O(1) device lookup by MAC | `Dictionary<string, DeviceRecord>` (case-insensitive key) | `Services/DeviceRegistryService.cs` |
-| Timeline graphs | `SortedDictionary<TimelineKey, TelemetrySnapshot>` | `Services/TelemetryTimeline.cs`: keyed by (device timestamp, sequence), so readings stay chronological even when critical packets are processed first or backlogs arrive late |
-| Unique error states / disconnected nodes | `HashSet<DeviceAlert>` (custom comparer on MAC + kind), `HashSet<string>` | `Services/AlertStateTracker.cs`: `Add()` returning false rejects duplicate alerts and repeat disconnect detections, which are counted on the dashboard |
+| O(1) device lookup by MAC | `Dictionary<string, DeviceRecord>` with a case-insensitive key (Microsoft, 2025a; 2025n) | `Services/DeviceRegistryService.cs` |
+| Timeline graphs | `SortedDictionary<TimelineKey, TelemetrySnapshot>` (Microsoft, 2025k) | `Services/TelemetryTimeline.cs`: keyed by (device timestamp, sequence), so readings stay chronological even when critical packets are processed first or backlogs arrive late |
+| Unique error states / disconnected nodes | `HashSet<DeviceAlert>` with a custom comparer on MAC + kind, and `HashSet<string>` (Microsoft, 2025b; 2025d) | `Services/AlertStateTracker.cs`: `Add()` returning false rejects duplicate alerts and repeat disconnect detections, which are counted on the dashboard |
 | Pattern learning | `Dictionary<condition, Dictionary<action, count>>`, Markov `Dictionary<action, Dictionary<action, count>>`, `HashSet` of counted (episode, action) pairs | `Services/Recommendations/ActionPatternModel.cs` |
 | Ranking suggestions and insights | `PriorityQueue<T, double>` / `PriorityQueue<T, (severity, urgency)>` | `Services/Recommendations/RecommendationService.cs` |
 | Coalesced real-time push | `HashSet<string>` of dirty devices | `Services/Realtime/GatewayBroadcaster.cs`: each device is sent at most once per 250 ms |
@@ -353,11 +353,11 @@ The overlay lives in the shared store (`frontend/src/state/optimistic.ts`). Whil
 - **Pattern analysis:** every operator search (that resolves to three or fewer devices) and every override command is recorded together with the conditions active at the time. Examples of conditions: Rack B moisture below 20%, power surge, node offline, outlier, low battery. Actions taken up to 2 minutes after a condition clears still count ("right after it dropped").
 - **Algorithmic suggestion:**
   - *Support:* how many past episodes of a condition included the action.
-  - *Confidence:* support ÷ episodes.
+  - *Confidence:* support ÷ episodes (Agrawal and Srikant, 1994).
   - First-order action-to-action transitions add "after X you usually do Y" suggestions.
   - Candidates are scored by confidence × (1 + log₂ support) × condition severity, discounted after dismissals, and ranked with a priority queue.
   - Suggestions already satisfied, in flight, or for offline devices are filtered out.
-- **Automated Insights:** rule-based detection of offline nodes, out-of-range readings, repeated outliers, packet loss and unacknowledged commands. A least-squares trend projection also predicts when a moisture sensor will cross 20%.
+- **Automated Insights:** rule-based detection of offline nodes, out-of-range readings, repeated outliers, packet loss and unacknowledged commands. A least-squares trend projection (Montgomery, Peck and Vining, 2012) also predicts when a moisture sensor will cross 20%.
 - **Presentation:** the Command Stream page shows **Suggested Actions** (with the reason, a confidence bar, Apply and Dismiss) and **Automated Insights** (click to focus that device's timeline).
 - **Training data:** six hours of prior operator sessions are seeded at start-up (and after Reset) so suggestions appear immediately. Seeded events are flagged and counted separately in the panel footer, and live behaviour keeps adding to the model.
 
@@ -432,40 +432,57 @@ Invoke-RestMethod "$api/devices/search?category=2&alertState=all"               
 
 ## References & Code Attribution
 
-All application code was written for this project. Framework APIs and published techniques were used and adapted as documented below; each key class also cites its source in an XML `Reference:` comment.
+All application code was written for this project. Framework APIs, documentation examples and published techniques that informed the code are acknowledged below in the IIE Harvard Anglia style (The IIE, 2026). Each class that uses a source repeats the full reference in a `Reference:` comment next to the code it informed, and in-text citations in this README use the author-date form, e.g. (Microsoft, 2025i).
 
-**Data structures and runtime (Microsoft Learn)**
-- Microsoft (n.d.) *Queue<T> Class*. Available at: https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.queue-1
-- Microsoft (n.d.) *PriorityQueue<TElement,TPriority> Class*. Available at: https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.priorityqueue-2
-- Microsoft (n.d.) *Stack<T> Class*. Available at: https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.stack-1
-- Microsoft (n.d.) *Dictionary<TKey,TValue> Class*. Available at: https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.dictionary-2
-- Microsoft (n.d.) *SortedDictionary<TKey,TValue> Class*. Available at: https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.sorteddictionary-2
-- Microsoft (n.d.) *HashSet<T> Class*. Available at: https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.hashset-1
-- Microsoft (n.d.) *LinkedList<T> Class*. Available at: https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.linkedlist-1
-- Microsoft (n.d.) *Background tasks with hosted services in ASP.NET Core*. Available at: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services
-- Microsoft (n.d.) *PeriodicTimer Class*. Available at: https://learn.microsoft.com/en-us/dotnet/api/system.threading.periodictimer
-- Microsoft (n.d.) *Overview of ASP.NET Core SignalR*. Available at: https://learn.microsoft.com/en-us/aspnet/core/signalr/introduction
-- Microsoft (n.d.) *Send messages from outside a hub*. Available at: https://learn.microsoft.com/en-us/aspnet/core/signalr/hubcontext
-- Microsoft (n.d.) *ASP.NET Core SignalR JavaScript client*. Available at: https://learn.microsoft.com/en-us/aspnet/core/signalr/javascript-client
-- Microsoft (n.d.) *Handle errors in ASP.NET Core APIs*. Available at: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling-api
-- Microsoft (n.d.) *Integration tests in ASP.NET Core*. Available at: https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests
-- Microsoft (n.d.) *Upload files in ASP.NET Core*. Available at: https://learn.microsoft.com/en-us/aspnet/core/mvc/models/file-uploads
-- Microsoft (n.d.) *Operator overloading (C# reference)*. Available at: https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/operator-overloading
-- Microsoft (n.d.) *Generic classes and methods*. Available at: https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/types/generics
+Where an online source shows no date of publication, [s.a.] (*sine anno*) is used, as the guide prescribes. Same-author, same-year sources are distinguished with a, b, c….
 
-**Frontend**
-- React (n.d.) *lazy*. Available at: https://react.dev/reference/react/lazy
-- React (n.d.) *Passing Data Deeply with Context*. Available at: https://react.dev/learn/passing-data-deeply-with-context
-- Remix Software (n.d.) *React Router: Routing*. Available at: https://reactrouter.com/start/declarative/routing
-
-**Algorithms, security and research**
-- Agrawal, R. and Srikant, R. (1994) 'Fast Algorithms for Mining Association Rules', *Proceedings of the 20th VLDB Conference*, pp. 487–499. (Support and confidence measures used by the pattern model.)
-- Bellare, M. and Namprempre, C. (2000) 'Authenticated Encryption: Relations among Notions and Analysis of the Generic Composition Paradigm', *ASIACRYPT 2000*, LNCS 1976, pp. 531–545. (Encrypt-then-MAC.)
-- Box, G.E.P. and Muller, M.E. (1958) 'A Note on the Generation of Random Normal Deviates', *The Annals of Mathematical Statistics*, 29(2), pp. 610–611. (Simulator noise.)
-- Chandola, V., Banerjee, A. and Kumar, V. (2009) 'Anomaly detection: A survey', *ACM Computing Surveys*, 41(3), pp. 1–58. (Rolling Z-score outliers.)
-- Krawczyk, H. and Eronen, P. (2010) *RFC 5869: HMAC-based Extract-and-Expand Key Derivation Function (HKDF)*. Available at: https://www.rfc-editor.org/rfc/rfc5869
-- Montgomery, D.C., Peck, E.A. and Vining, G.G. (2012) *Introduction to Linear Regression Analysis*. 5th edn. Hoboken: Wiley. (Least-squares trend projection.)
-- Research strategies (Endsley, 1995; Shneiderman, 1996; Sweller, 1988; Sailer et al., 2017; Parasuraman, Sheridan and Wickens, 2000) as cited in the Task 1 research report.
+- Agrawal, R. and Srikant, R., 1994. Fast algorithms for mining association rules. *Proceedings of the 20th International Conference on Very Large Data Bases*. Santiago, Chile, 12–15 September 1994. San Francisco: Morgan Kaufmann, pp.487–499.
+- Bellare, M. and Namprempre, C., 2000. Authenticated encryption: Relations among notions and analysis of the generic composition paradigm. *Advances in Cryptology – ASIACRYPT 2000*. Kyoto, Japan, 3–7 December 2000. Berlin: Springer, pp.531–545.
+- Box, G.E.P. and Muller, M.E., 1958. A note on the generation of random normal deviates. *The Annals of Mathematical Statistics*, 29(2), pp.610–611.
+- Chandola, V., Banerjee, A. and Kumar, V., 2009. Anomaly detection: A survey. *ACM Computing Surveys*, 41(3), pp.1–58. Available at: <https://doi.org/10.1145/1541880.1541882> [Accessed 19 October 2026].
+- Endsley, M.R., 1995. Toward a theory of situation awareness in dynamic systems. *Human Factors: The Journal of the Human Factors and Ergonomics Society*, 37(1), pp.32–64. Available at: <https://doi.org/10.1518/001872095779049543> [Accessed 19 October 2026].
+- Few, S., 2013. *Information dashboard design: Displaying data for at-a-glance monitoring*. 2nd ed. Burlingame: Analytics Press.
+- Heer, J. and Shneiderman, B., 2012. Interactive dynamics for visual analysis. *Communications of the ACM*, 55(4), pp.45–54.
+- Hutchins, E.L., Hollan, J.D. and Norman, D.A., 1985. Direct manipulation interfaces. *Human–Computer Interaction*, 1(4), pp.311–338.
+- Krawczyk, H. and Eronen, P., 2010. *HMAC-based extract-and-expand key derivation function (HKDF)*. RFC 5869. [online] Available at: <https://www.rfc-editor.org/rfc/rfc5869> [Accessed 19 October 2026].
+- Microsoft, 2023. *SignalR HubContext*. [online] Available at: <https://learn.microsoft.com/en-us/aspnet/core/signalr/hubcontext> [Accessed 19 October 2026].
+- Microsoft, 2025a. *Dictionary<TKey,TValue> class (System.Collections.Generic)*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.dictionary-2> [Accessed 19 October 2026].
+- Microsoft, 2025b. *HashSet<T> class (System.Collections.Generic)*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.hashset-1> [Accessed 19 October 2026].
+- Microsoft, 2025c. *IComparable<T> interface (System)*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.icomparable-1> [Accessed 19 October 2026].
+- Microsoft, 2025d. *IEqualityComparer<T> interface (System.Collections.Generic)*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.iequalitycomparer-1> [Accessed 19 October 2026].
+- Microsoft, 2025e. *IReadOnlyCollection<T> interface (System.Collections.Generic)*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.ireadonlycollection-1> [Accessed 19 October 2026].
+- Microsoft, 2025f. *LinkedList<T> class (System.Collections.Generic)*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.linkedlist-1> [Accessed 19 October 2026].
+- Microsoft, 2025g. *PeriodicTimer class (System.Threading)*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.threading.periodictimer> [Accessed 19 October 2026].
+- Microsoft, 2025h. *PriorityQueue<TElement,TPriority> class (System.Collections.Generic)*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.priorityqueue-2> [Accessed 19 October 2026].
+- Microsoft, 2025i. *Queue<T> class (System.Collections.Generic)*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.queue-1> [Accessed 19 October 2026].
+- Microsoft, 2025j. *SemaphoreSlim class (System.Threading)*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.threading.semaphoreslim> [Accessed 19 October 2026].
+- Microsoft, 2025k. *SortedDictionary<TKey,TValue> class (System.Collections.Generic)*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.sorteddictionary-2> [Accessed 19 October 2026].
+- Microsoft, 2025l. *SpinWait.SpinUntil method (System.Threading)*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.threading.spinwait.spinuntil> [Accessed 19 October 2026].
+- Microsoft, 2025m. *Stack<T> class (System.Collections.Generic)*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.stack-1> [Accessed 19 October 2026].
+- Microsoft, 2025n. *StringComparer.OrdinalIgnoreCase property (System)*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.stringcomparer.ordinalignorecase> [Accessed 19 October 2026].
+- Microsoft, 2025o. *System.Security.Cryptography namespace*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography> [Accessed 19 October 2026].
+- Microsoft, 2026a. *ASP.NET Core SignalR JavaScript client*. [online] Available at: <https://learn.microsoft.com/en-us/aspnet/core/signalr/javascript-client> [Accessed 19 October 2026].
+- Microsoft, 2026b. *ASP.NET Core SignalR production hosting and scaling*. [online] Available at: <https://learn.microsoft.com/en-us/aspnet/core/signalr/scale> [Accessed 19 October 2026].
+- Microsoft, 2026c. *Background tasks with hosted services in ASP.NET Core*. [online] Available at: <https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services> [Accessed 19 October 2026].
+- Microsoft, 2026d. *Generic types and methods - C#*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/types/generics> [Accessed 19 October 2026].
+- Microsoft, 2026e. *Handle errors in ASP.NET Core APIs*. [online] Available at: <https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling-api> [Accessed 19 October 2026].
+- Microsoft, 2026f. *Integration tests in ASP.NET Core*. [online] Available at: <https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests> [Accessed 19 October 2026].
+- Microsoft, 2026g. *Make HTTP requests with the HttpClient - .NET*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient> [Accessed 19 October 2026].
+- Microsoft, 2026h. *Operator overloading - C# reference*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/operator-overloading> [Accessed 19 October 2026].
+- Microsoft, 2026i. *Overview of ASP.NET Core SignalR*. [online] Available at: <https://learn.microsoft.com/en-us/aspnet/core/signalr/introduction> [Accessed 19 October 2026].
+- Microsoft, 2026j. *The array reference type - C# reference*. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/arrays> [Accessed 19 October 2026].
+- Microsoft, 2026k. *Upload files in ASP.NET Core*. [online] Available at: <https://learn.microsoft.com/en-us/aspnet/core/mvc/models/file-uploads> [Accessed 19 October 2026].
+- Montgomery, D.C., Peck, E.A. and Vining, G.G., 2012. *Introduction to linear regression analysis*. 5th ed. Hoboken: Wiley.
+- Parasuraman, R., Sheridan, T.B. and Wickens, C.D., 2000. A model for types and levels of human interaction with automation. *IEEE Transactions on Systems, Man, and Cybernetics – Part A: Systems and Humans*, 30(3), pp.286–297.
+- React, [s.a.]a. *lazy*. [online] Available at: <https://react.dev/reference/react/lazy> [Accessed 19 October 2026].
+- React, [s.a.]b. *Passing data deeply with context*. [online] Available at: <https://react.dev/learn/passing-data-deeply-with-context> [Accessed 19 October 2026].
+- React, [s.a.]c. *useOptimistic*. [online] Available at: <https://react.dev/reference/react/useOptimistic> [Accessed 19 October 2026].
+- React Router, [s.a.]a. *Routing*. [online] Available at: <https://reactrouter.com/start/declarative/routing> [Accessed 19 October 2026].
+- React Router, [s.a.]b. *useSearchParams*. [online] Available at: <https://reactrouter.com/api/hooks/useSearchParams> [Accessed 19 October 2026].
+- Sailer, M., Hense, J.U., Mayr, S.K. and Mandl, H., 2017. How gamification motivates: An experimental study of the effects of specific game design elements on psychological need satisfaction. *Computers in Human Behavior*, 69, pp.371–380.
+- Shneiderman, B., 1996. The eyes have it: A task by data type taxonomy for information visualizations. *Proceedings of the 1996 IEEE Symposium on Visual Languages*. Boulder, Colorado, 3–6 September 1996. Los Alamitos: IEEE, pp.336–343. Available at: <https://doi.org/10.1109/VL.1996.545307> [Accessed 19 October 2026].
+- Sweller, J., 1988. Cognitive load during problem solving: Effects on learning. *Cognitive Science*, 12(2), pp.257–285. Available at: <https://doi.org/10.1207/s15516709cog1202_4> [Accessed 19 October 2026].
+- The IIE, 2026. *The IIE Harvard Anglia style reference guide: Adapted for The IIE 2026*. [s.l.]: The Independent Institute of Education.
 
 ---
 

@@ -16,7 +16,7 @@ public record SimulationDirectives(List<string> DroppedMacs, List<SpikeDirective
 /// <summary>
 /// The device-side HTTP contract with the Smart-X gateway. Every simulated reading and command acknowledgement
 /// goes over the network exactly as a physical ESP32 node would send it.
-/// Reference: Make HTTP requests with the HttpClient class (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient
+/// Reference: Microsoft, 2026g. Make HTTP requests with the HttpClient - .NET. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient> [Accessed 19 October 2026].
 /// </summary>
 public class GatewayApiClient
 {

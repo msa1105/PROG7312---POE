@@ -29,8 +29,8 @@ public record TimelinePoint(DateTime Timestamp, double? Value, double? Min, doub
 /// Per-device historical sensor log backed by SortedDictionary&lt;TimelineKey, TelemetrySnapshot&gt;.
 /// Readings stay in timestamp order even when they are processed out of arrival order (critical packets
 /// bypass the standard queue, and devices may upload delayed backlogs), so timeline graphs never need re-sorting.
-/// Reference: SortedDictionary<TKey,TValue> Class (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.sorteddictionary-2
-/// Reference: IComparable<T> Interface (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.icomparable-1
+/// Reference: Microsoft, 2025k. SortedDictionary<TKey,TValue> class (System.Collections.Generic). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.sorteddictionary-2> [Accessed 19 October 2026].
+/// Reference: Microsoft, 2025c. IComparable<T> interface (System). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.icomparable-1> [Accessed 19 October 2026].
 /// </summary>
 public class TelemetryTimeline
 {

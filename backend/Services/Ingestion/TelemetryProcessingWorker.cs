@@ -8,8 +8,8 @@ namespace SmartX.Api.Services.Ingestion;
 /// Single consumer of the two-lane ingestion queue. Each dequeued packet is resolved to its device (O(1) dictionary
 /// lookup), scored by the anomaly detector, appended to the device's sorted timeline, and turned into de-duplicated
 /// alerts via the HashSet-backed <see cref="AlertStateTracker"/>.
-/// Reference: Background tasks with hosted services (Microsoft Learn) - https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services
-/// Reference: SpinWait.SpinUntil (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.threading.spinwait.spinuntil
+/// Reference: Microsoft, 2026c. Background tasks with hosted services in ASP.NET Core. [online] Available at: <https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services> [Accessed 19 October 2026].
+/// Reference: Microsoft, 2025l. SpinWait.SpinUntil method (System.Threading). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.threading.spinwait.spinuntil> [Accessed 19 October 2026].
 /// </summary>
 public class TelemetryProcessingWorker : BackgroundService
 {

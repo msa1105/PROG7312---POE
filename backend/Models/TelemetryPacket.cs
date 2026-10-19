@@ -1,7 +1,7 @@
 namespace SmartX.Api.Models;
 
 /// <summary>
-/// Reference: Generic classes and methods (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/types/generics
+/// Reference: Microsoft, 2026d. Generic types and methods - C#. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/types/generics> [Accessed 19 October 2026].
 /// </summary>
 public sealed class TelemetryPacket<T>
 {

@@ -1,7 +1,7 @@
 namespace SmartX.Api.Models;
 
 /// <summary>
-/// Reference: Operator overloading (C# reference, Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/operator-overloading
+/// Reference: Microsoft, 2026h. Operator overloading - C# reference. [online] Available at: <https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/operators/operator-overloading> [Accessed 19 October 2026].
 /// </summary>
 public readonly struct PowerMetric : IEquatable<PowerMetric>, IComparable<PowerMetric>
 {

@@ -17,7 +17,7 @@ const MAX_LEARNABLE_MATCHES = 3;
 /**
  * Pillar 2: Real-Time Command Stream & History.
  * Filters and the selected device live in the URL query string, so they survive navigation, refresh and back/forward.
- * Reference: useSearchParams (React Router) - https://reactrouter.com/api/hooks/useSearchParams
+ * Reference: React Router, [s.a.]b. useSearchParams. [online] Available at: <https://reactrouter.com/api/hooks/useSearchParams> [Accessed 19 October 2026].
  */
 const CommandStreamPage = () => {
   const store = useGatewayStore();

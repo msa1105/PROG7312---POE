@@ -7,7 +7,7 @@ public record AnomalyEvaluation(bool IsAnomaly, double? ZScore, double? Baseline
 public record RollingBaseline(double Mean, double StdDev, int SampleCount);
 
 /// <summary>
-/// Reference: Z-score outlier detection: Chandola, V., Banerjee, A. and Kumar, V. (2009) 'Anomaly detection: A survey', ACM Computing Surveys, 41(3), pp. 1-58.
+/// Reference: Chandola, V., Banerjee, A. and Kumar, V., 2009. Anomaly detection: A survey. ACM Computing Surveys, 41(3), pp.1-58.
 /// </summary>
 public class AnomalyDetectionService
 {

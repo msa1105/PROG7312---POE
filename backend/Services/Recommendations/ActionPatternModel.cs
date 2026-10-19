@@ -30,8 +30,8 @@ public record PatternModelStats(int EventsLearned, int SeededEvents, int Conditi
 /// - HashSet&lt;string&gt; of (condition episode, action) pairs: an action is counted at most once per episode,
 ///   so repeatedly clicking a button cannot inflate a pattern.
 /// - LinkedList&lt;OperatorEvent&gt;: bounded, newest-first operator history.
-/// Reference: Support/confidence measures: Agrawal, R. and Srikant, R. (1994) 'Fast Algorithms for Mining Association Rules', Proc. 20th VLDB Conference, pp. 487-499.
-/// Reference: LinkedList<T> Class (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.linkedlist-1
+/// Reference: Agrawal, R. and Srikant, R., 1994. Fast algorithms for mining association rules. Proceedings of the 20th International Conference on Very Large Data Bases. Santiago, Chile, 12-15 September 1994. San Francisco: Morgan Kaufmann, pp.487-499.
+/// Reference: Microsoft, 2025f. LinkedList<T> class (System.Collections.Generic). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.linkedlist-1> [Accessed 19 October 2026].
 /// </summary>
 public class ActionPatternModel
 {

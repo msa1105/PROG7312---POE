@@ -10,8 +10,8 @@ public record AlertTrackerStats(int ActiveAlerts, int DisconnectedNodes, long Du
 /// - HashSet&lt;DeviceAlert&gt; keyed by (MAC, alert kind): Add() returns false for a duplicate, so a sensor that keeps
 ///   breaching a threshold every packet raises exactly one active alert until an operator acknowledges it.
 /// Duplicates are rejected in O(1) before any further processing and counted for the dashboard.
-/// Reference: HashSet<T> Class (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.hashset-1
-/// Reference: IEqualityComparer<T> Interface (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.iequalitycomparer-1
+/// Reference: Microsoft, 2025b. HashSet<T> class (System.Collections.Generic). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.hashset-1> [Accessed 19 October 2026].
+/// Reference: Microsoft, 2025d. IEqualityComparer<T> interface (System.Collections.Generic). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.iequalitycomparer-1> [Accessed 19 October 2026].
 /// </summary>
 public class AlertStateTracker
 {

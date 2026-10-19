@@ -71,7 +71,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Unhandled exceptions become RFC 7807 problem responses instead of crashing the request pipeline
-// Reference: Handle errors in ASP.NET Core APIs (Microsoft Learn) - https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling-api
+// Reference: Microsoft, 2026e. Handle errors in ASP.NET Core APIs. [online] Available at: <https://learn.microsoft.com/en-us/aspnet/core/fundamentals/error-handling-api> [Accessed 19 October 2026].
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 

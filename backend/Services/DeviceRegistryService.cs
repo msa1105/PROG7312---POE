@@ -7,8 +7,8 @@ using System.Text.RegularExpressions;
 /// Live device registry. Devices are held in a Dictionary&lt;string, DeviceRecord&gt; keyed by the normalised
 /// (upper-case, colon-separated) MAC address, so every incoming packet resolves its device in O(1).
 /// Each record owns a SortedDictionary-backed <see cref="TelemetryTimeline"/> of its historical readings.
-/// Reference: Dictionary<TKey,TValue> Class (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.dictionary-2
-/// Reference: StringComparer.OrdinalIgnoreCase (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.stringcomparer.ordinalignorecase
+/// Reference: Microsoft, 2025a. Dictionary<TKey,TValue> class (System.Collections.Generic). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.dictionary-2> [Accessed 19 October 2026].
+/// Reference: Microsoft, 2025n. StringComparer.OrdinalIgnoreCase property (System). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.stringcomparer.ordinalignorecase> [Accessed 19 October 2026].
 /// </summary>
 public partial class DeviceRegistryService
 {

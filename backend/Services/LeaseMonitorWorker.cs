@@ -7,7 +7,7 @@ namespace SmartX.Api.Services;
 /// Gateway-side heartbeat supervision. Every half second it checks each node's lease; a node whose lease expired is
 /// added to the disconnected HashSet exactly once (repeat detections are rejected by the set) and raises a single
 /// latched HeartbeatLost alert. Also expires manual commands that devices never acknowledged.
-/// Reference: PeriodicTimer Class (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.threading.periodictimer
+/// Reference: Microsoft, 2025g. PeriodicTimer class (System.Threading). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.threading.periodictimer> [Accessed 19 October 2026].
 /// </summary>
 public class LeaseMonitorWorker : BackgroundService
 {

@@ -13,7 +13,7 @@ namespace SmartX.Api.Tests;
 /// <summary>
 /// Boots the real API (processing worker, lease monitor and SignalR broadcaster included) against isolated temp storage.
 /// The tests act as devices themselves, so no simulator process is needed.
-/// Reference: Integration tests in ASP.NET Core (Microsoft Learn) - https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests
+/// Reference: Microsoft, 2026f. Integration tests in ASP.NET Core. [online] Available at: <https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests> [Accessed 19 October 2026].
 /// </summary>
 public sealed class SmartXApiFactory : WebApplicationFactory<Program>
 {

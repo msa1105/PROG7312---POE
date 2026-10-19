@@ -5,8 +5,8 @@ import { AppShell } from './components/layout/AppShell';
 import { useGatewayStore } from './state/gatewayContext';
 
 // Route-level code splitting: each module is loaded on first visit, then kept in the browser cache.
-// Reference: lazy (react.dev) - https://react.dev/reference/react/lazy
-// Reference: React Router - Routing - https://reactrouter.com/start/declarative/routing
+// Reference: React, [s.a.]a. lazy. [online] Available at: <https://react.dev/reference/react/lazy> [Accessed 19 October 2026].
+// Reference: React Router, [s.a.]a. Routing. [online] Available at: <https://reactrouter.com/start/declarative/routing> [Accessed 19 October 2026].
 const IngestionPage = lazy(() => import('./pages/IngestionPage'));
 const CommandStreamPage = lazy(() => import('./pages/CommandStreamPage'));
 const TopologyLockedPage = lazy(() => import('./pages/TopologyLockedPage'));

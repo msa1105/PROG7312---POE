@@ -23,8 +23,8 @@ public sealed class NullDeviceChangeNotifier : IDeviceChangeNotifier
 /// Coalescing real-time publisher. Devices touched by the processing pipeline are collected in a HashSet
 /// (each device is sent at most once per 250 ms flush no matter how many packets it produced), command and
 /// alert changes are pushed as they happen, and pipeline / recommendation snapshots are pushed periodically.
-/// Reference: Send messages from outside a hub - IHubContext (Microsoft Learn) - https://learn.microsoft.com/en-us/aspnet/core/signalr/hubcontext
-/// Reference: Background tasks with hosted services (Microsoft Learn) - https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services
+/// Reference: Microsoft, 2023. SignalR HubContext. [online] Available at: <https://learn.microsoft.com/en-us/aspnet/core/signalr/hubcontext> [Accessed 19 October 2026].
+/// Reference: Microsoft, 2026c. Background tasks with hosted services in ASP.NET Core. [online] Available at: <https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services> [Accessed 19 October 2026].
 /// </summary>
 public class GatewayBroadcaster : BackgroundService, IDeviceChangeNotifier
 {

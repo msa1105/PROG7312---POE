@@ -43,8 +43,8 @@ public record SuggestionAcceptance(ActionSuggestion Suggestion, CommandBatch? Ba
 /// Detects live conditions from the registry and alert sets, feeds them to the <see cref="ActionPatternModel"/>,
 /// and turns learned patterns into ranked "Suggested Actions" (a PriorityQueue ordered by score) alongside
 /// rule- and trend-based "Automated Insights" about potentially problematic devices.
-/// Reference: PriorityQueue<TElement,TPriority> Class (Microsoft Learn) - https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.priorityqueue-2
-/// Reference: Least-squares trend: Montgomery, D.C., Peck, E.A. and Vining, G.G. (2012) Introduction to Linear Regression Analysis. 5th edn. Hoboken: Wiley.
+/// Reference: Microsoft, 2025h. PriorityQueue<TElement,TPriority> class (System.Collections.Generic). [online] Available at: <https://learn.microsoft.com/en-us/dotnet/api/system.collections.generic.priorityqueue-2> [Accessed 19 October 2026].
+/// Reference: Montgomery, D.C., Peck, E.A. and Vining, G.G., 2012. Introduction to linear regression analysis. 5th ed. Hoboken: Wiley.
 /// </summary>
 public class RecommendationService
 {
