@@ -203,7 +203,7 @@ graph TD
 - **.NET SDK:** Version 10.0 or later (installed)
 - **Node.js:** Version 20.x or later (with `npm`)
 - **Docker Engine & Docker Compose:** (Optional, for containerized execution)
-- **Git:** Version 2.40+ (repository contains 60+ structured commits)
+- **Git:** Version 2.40+ (repository contains 80+ structured commits across Part 1 and Part 2)
 
 ---
 
@@ -214,15 +214,17 @@ graph TD
 This single command builds and starts three containers: the .NET API, the ESP32 **device simulator** (which sends all telemetry to the API over HTTP), and the React frontend behind nginx (which also proxies the SignalR WebSocket):
 
 ```bash
-# 1. Clone the repository and enter directory
-cd "c:/Users/alexa/OneDrive/Desktop/PROG7312/PROG7312 - POE"
+# 1. Clone the repository and enter its directory
+git clone https://github.com/EMKNDN/emkndn-prog7312-g2-2026-prog7312-poe-msa1105.git
+cd emkndn-prog7312-g2-2026-prog7312-poe-msa1105
 
 # 2. Build and launch all containers
 docker compose up --build
 ```
 
-- **Frontend Application Gateway:** Open [http://localhost:3000](http://localhost:3000)
-- **Backend Minimal API:** Accessible at [http://localhost:5000](http://localhost:5000)
+- **Frontend Application Gateway:** Open [http://localhost:3000](http://localhost:3000). nginx serves the app and proxies both `/api` and the SignalR WebSocket at `/hubs/gateway` to the backend, so the dashboard updates live with no extra configuration.
+- **Backend Minimal API:** Accessible at [http://localhost:5000](http://localhost:5000) (health check: `/api/health`, OpenAPI document only in Development)
+- **Device simulator:** has no port; follow its output with `docker compose logs -f simulator`
 
 If those host ports are already in use, override them (the frontend reaches the API over the internal Docker network, so only the web port matters):
 ```bash
@@ -239,10 +241,12 @@ docker compose down
 
 ### Method 2: Manual Local CLI Boot
 
+Run each step from the repository root in its own terminal.
+
 #### Step 1: Restore and Run the Backend (.NET 10 API)
 ```powershell
 # Navigate to backend directory
-cd "c:/Users/alexa/OneDrive/Desktop/PROG7312/PROG7312 - POE/backend"
+cd backend
 
 # Restore NuGet dependencies
 dotnet restore
@@ -258,7 +262,7 @@ dotnet run --launch-profile http
 #### Step 2: Run the Device Simulator
 The simulator plays the ESP32 fleet: it registers the devices, sends one reading per device every 1.5 s over HTTP, polls for commands and acknowledges them. Open a second terminal:
 ```powershell
-cd "c:/Users/alexa/OneDrive/Desktop/PROG7312/PROG7312 - POE/simulator/SmartX.DeviceSimulator"
+cd simulator/SmartX.DeviceSimulator
 dotnet run
 ```
 *Without the simulator the dashboard still loads, but every device shows as offline. Set `SMARTX_API_URL` to point it at another API address.*
@@ -267,7 +271,7 @@ dotnet run
 Open a third terminal window:
 ```powershell
 # Navigate to frontend directory
-cd "c:/Users/alexa/OneDrive/Desktop/PROG7312/PROG7312 - POE/frontend"
+cd frontend
 
 # Install npm dependencies
 npm install
@@ -288,14 +292,14 @@ npm run dev
 Execute the xUnit suite. Part 1 tests cover `PowerMetric` operator overloads, `BoundedTelemetryCollection<T>`, anomaly detection, `JaggedTelemetryBuffer`, `IncidentTriageService`, `FileEncryptionService` (round-trip, tamper and wrong-key detection), attachment sanitisation and `TopologyEngine`. Part 2 tests cover the FIFO and priority lanes (ordering, severity, bypass, back-pressure), the command outboxes and `Stack<T>` undo, the `SortedDictionary` timeline (ordering, eviction, downsampling), the `HashSet` alert tracker, the pattern model and recommendation engine, and the simulator physics. HTTP integration tests boot the real API (worker, lease monitor and SignalR hub included) via `WebApplicationFactory` and act as devices:
 
 ```powershell
-cd "c:/Users/alexa/OneDrive/Desktop/PROG7312/PROG7312 - POE/backend/SmartX.Api.Tests"
+cd backend/SmartX.Api.Tests
 dotnet test
 ```
 *Expected Result: 98 tests passed (0 failed, 0 skipped), in roughly 10 seconds.*
 
 ### 2. Frontend Production Verification
 ```powershell
-cd "c:/Users/alexa/OneDrive/Desktop/PROG7312/PROG7312 - POE/frontend"
+cd frontend
 npm run build
 ```
 *Expected Result: Clean production bundle build in `< 2.0s`.*
